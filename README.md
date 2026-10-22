@@ -28,6 +28,19 @@ lec-fantasy/
 
 ---
 
+## 0. Flujo de trabajo con git
+
+1. Actualizar localmente: `git switch develop` y luego `git pull origin develop`.
+2. Crear la feature: `git switch -c feature/nombre-de-la-tarea`.
+3. Trabajar y guardar: `git add .` y `git commit -m "Mensaje descriptivo"`.
+4. Subir la rama: `git push -u origin feature/nombre-de-la-tarea`.
+5. Abrir una Pull Request en GitHub desde la rama `feature/*` hacia `develop`.
+6. Revisión: otro compañero revisa el código y da el visto bueno (*Approve*).
+7. Fusión: se hace el *merge* de la PR y se borra la rama `feature` remota.
+8. Para publicar una versión: Pull Request de `develop` hacia `main` (Railway despliega `main`).
+
+---
+
 ## 1. Arrancar el backend en tu PC
 
 > **Requisito: JDK 21 para ejecutar Gradle.** Gradle 8.14 (el máximo que admite Spring Boot 3.5)
