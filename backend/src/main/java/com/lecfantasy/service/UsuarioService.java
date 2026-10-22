@@ -64,6 +64,14 @@ public class UsuarioService {
     }
 
     @Transactional
+    public UsuarioPrivado cambiarApariencia(Long id, AparienciaRequest req) {
+        Usuario u = obtener(id);
+        u.setTema(req.tema());
+        u.setColorAcento(req.colorAcento().toUpperCase(Locale.ROOT));
+        return UsuarioPrivado.of(u);
+    }
+
+    @Transactional
     public void cambiarPassword(Long id, CambiarPasswordRequest req) {
         Usuario u = obtener(id);
         // Las cuentas creadas con Google pueden definir su primera contraseña sin la actual

@@ -45,13 +45,15 @@ public class JornadaService {
     private final LeaguepediaClient leaguepedia;
     private final OraclesElixirParser oraclesElixir;
     private final ActividadService actividad;
+    private final HistorialValorRepository historialValor;
 
     public JornadaService(JornadaRepository jornadas, PartidaRealRepository partidas,
                           EstadisticaRepository estadisticas, EquipoFantasyRepository equipos,
                           PlantillaJugadorRepository plantillas, MejoraAplicadaRepository mejorasAplicadas,
                           PuntuacionJornadaRepository puntuaciones, ImportService importService,
                           LeaguepediaClient leaguepedia, OraclesElixirParser oraclesElixir,
-                          ActividadService actividad) {
+                          ActividadService actividad, HistorialValorRepository historialValor) {
+        this.historialValor = historialValor;
         this.jornadas = jornadas;
         this.partidas = partidas;
         this.estadisticas = estadisticas;
@@ -264,7 +266,7 @@ public class JornadaService {
             equipo.setPuntosTotales(equipo.getPuntosTotales().add(pj.getPuntosTotales()));
         }
 
-        int precios = actualizarPrecios(statsPorJugador, puntosPorJugador);
+        int precios = actualizarPrecios(j, statsPorJugador, puntosPorJugador);
 
         j.setEstado(EstadoJornada.FINALIZADA);
         j.setFechaFinalizacion(LocalDateTime.now());
@@ -287,9 +289,10 @@ public class JornadaService {
      * Cada jugador que ha jugado sube o baja hasta un 8 % según su media de puntos
      * respecto a la referencia (25 puntos por partida).
      */
-    private int actualizarPrecios(Map<Long, List<EstadisticaJugadorPartida>> statsPorJugador,
+    private int actualizarPrecios(Jornada jornada, Map<Long, List<EstadisticaJugadorPartida>> statsPorJugador,
                                   Map<Long, BigDecimal> puntosPorJugador) {
         int cambiados = 0;
+        LocalDateTime ahora = LocalDateTime.now();
         for (Map.Entry<Long, List<EstadisticaJugadorPartida>> en : statsPorJugador.entrySet()) {
             JugadorReal jugador = en.getValue().get(0).getJugador();
             BigDecimal media = puntosPorJugador.get(en.getKey())
@@ -300,8 +303,9 @@ public class JornadaService {
             BigDecimal nuevo = jugador.getValorMercado().multiply(BigDecimal.ONE.add(variacion))
                     .divide(REDONDEO_PRECIO, 0, RoundingMode.HALF_UP).multiply(REDONDEO_PRECIO)
                     .max(VALOR_MINIMO).setScale(2, RoundingMode.HALF_UP);
-            if (nuevo.compareTo(jugador.getValorMercado()) != 0) {
-                jugador.setValorMercado(nuevo);
+            if (jugador.cambiarValor(nuevo)) {
+                // Se guarda para la gráfica de evolución del precio y la variación del mercado
+                historialValor.registrarCambio(jugador, jornada, ahora);
                 cambiados++;
             }
         }

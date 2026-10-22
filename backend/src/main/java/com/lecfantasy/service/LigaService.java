@@ -10,8 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,10 +27,13 @@ public class LigaService {
     private final UsuarioRepository usuarios;
     private final JornadaRepository jornadas;
     private final PuntuacionJornadaRepository puntuaciones;
+    private final PlantillaJugadorRepository plantillas;
     private final AppProperties props;
 
     public LigaService(GrupoLigaRepository grupos, EquipoFantasyRepository equipos, UsuarioRepository usuarios,
-                       JornadaRepository jornadas, PuntuacionJornadaRepository puntuaciones, AppProperties props) {
+                       JornadaRepository jornadas, PuntuacionJornadaRepository puntuaciones,
+                       PlantillaJugadorRepository plantillas, AppProperties props) {
+        this.plantillas = plantillas;
         this.grupos = grupos;
         this.equipos = equipos;
         this.usuarios = usuarios;
@@ -98,13 +104,12 @@ public class LigaService {
     @Transactional(readOnly = true)
     public List<ClasificacionFila> clasificacion(AuthUser yo, Long ligaId, Long jornadaId) {
         detalle(yo, ligaId); // comprueba acceso
+        Extras extras = extras(ligaId);
         List<ClasificacionFila> filas = new ArrayList<>();
         if (jornadaId == null) {
             List<EquipoFantasy> lista = equipos.clasificacion(ligaId);
             for (int i = 0; i < lista.size(); i++) {
-                EquipoFantasy e = lista.get(i);
-                filas.add(new ClasificacionFila(i + 1, e.getId(), e.getNombre(), e.getUsuario().getId(),
-                        e.getUsuario().getNombre(), e.getPuntosTotales()));
+                filas.add(fila(i + 1, lista.get(i), lista.get(i).getPuntosTotales(), extras));
             }
         } else {
             if (!jornadas.existsById(jornadaId)) {
@@ -112,13 +117,42 @@ public class LigaService {
             }
             List<PuntuacionJornada> lista = puntuaciones.clasificacionJornada(ligaId, jornadaId);
             for (int i = 0; i < lista.size(); i++) {
-                PuntuacionJornada p = lista.get(i);
-                EquipoFantasy e = p.getEquipo();
-                filas.add(new ClasificacionFila(i + 1, e.getId(), e.getNombre(), e.getUsuario().getId(),
-                        e.getUsuario().getNombre(), p.getPuntosTotales()));
+                filas.add(fila(i + 1, lista.get(i).getEquipo(), lista.get(i).getPuntosTotales(), extras));
             }
         }
         return filas;
+    }
+
+    /** Datos de apoyo de la clasificación: valor de cada plantilla y puntos de cada jornada. */
+    private record Extras(Map<Long, BigDecimal> valores, Map<Long, List<PuntuacionJornada>> porEquipo,
+                          Map<Long, BigDecimal> mediaPorJornada) {
+    }
+
+    private Extras extras(Long ligaId) {
+        Map<Long, BigDecimal> valores = new HashMap<>();
+        for (Object[] f : plantillas.valorPlantillasPorGrupo(ligaId)) {
+            valores.put(((Number) f[0]).longValue(), f[1] instanceof BigDecimal b ? b : new BigDecimal(String.valueOf(f[1])));
+        }
+        List<PuntuacionJornada> todas = puntuaciones.findByGrupo(ligaId);
+        Map<Long, List<PuntuacionJornada>> porEquipo = todas.stream()
+                .collect(Collectors.groupingBy(p -> p.getEquipo().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<Long, BigDecimal> media = new HashMap<>();
+        todas.stream().collect(Collectors.groupingBy(p -> p.getJornada().getId())).forEach((jornada, lista) ->
+                media.put(jornada, lista.stream().map(PuntuacionJornada::getPuntosTotales)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(lista.size()), 2, RoundingMode.HALF_UP)));
+        return new Extras(valores, porEquipo, media);
+    }
+
+    private static ClasificacionFila fila(int posicion, EquipoFantasy e, BigDecimal puntos, Extras x) {
+        List<PuntuacionJornada> suyas = x.porEquipo().getOrDefault(e.getId(), List.of());
+        List<RachaDto> racha = suyas.subList(Math.max(0, suyas.size() - 5), suyas.size()).stream()
+                .map(p -> new RachaDto(p.getJornada().getId(), p.getJornada().getNombre(), p.getPuntosTotales(),
+                        p.getPuntosTotales().compareTo(x.mediaPorJornada().get(p.getJornada().getId())) >= 0))
+                .toList();
+        BigDecimal ultima = suyas.isEmpty() ? null : suyas.get(suyas.size() - 1).getPuntosTotales();
+        return new ClasificacionFila(posicion, e.getId(), e.getNombre(), e.getUsuario().getId(),
+                e.getUsuario().getNombre(), puntos, ultima, x.valores().getOrDefault(e.getId(), BigDecimal.ZERO), racha);
     }
 
     // ------------------------- Acciones -------------------------

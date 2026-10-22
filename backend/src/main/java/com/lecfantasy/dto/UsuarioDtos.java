@@ -1,8 +1,10 @@
 package com.lecfantasy.dto;
 
 import com.lecfantasy.domain.Rol;
+import com.lecfantasy.domain.Tema;
 import com.lecfantasy.domain.Usuario;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -19,12 +21,13 @@ public final class UsuarioDtos {
     public record UsuarioPrivado(Long id, String nombre, String email, Rol rol, LocalDate fechaNacimiento,
                                  String pais, CatalogoDtos.EquipoProDto equipoFavorito, String riotId,
                                  boolean aceptaNoticias, boolean perfilCompleto, boolean tienePassword,
-                                 LocalDateTime fechaRegistro) {
+                                 LocalDateTime fechaRegistro, Tema tema, String colorAcento) {
 
         public static UsuarioPrivado of(Usuario u) {
             return new UsuarioPrivado(u.getId(), u.getNombre(), u.getEmail(), u.getRol(), u.getFechaNacimiento(),
                     u.getPais(), CatalogoDtos.EquipoProDto.ofNullable(u.getEquipoFavorito()), u.getRiotId(),
-                    u.isAceptaNoticias(), u.isPerfilCompleto(), u.getPasswordHash() != null, u.getFechaRegistro());
+                    u.isAceptaNoticias(), u.isPerfilCompleto(), u.getPasswordHash() != null, u.getFechaRegistro(),
+                    u.getTema(), u.getColorAcento());
         }
     }
 
@@ -50,5 +53,11 @@ public final class UsuarioDtos {
     public record CambiarPasswordRequest(
             String passwordActual,
             @NotBlank @Size(min = 8, max = 72, message = "Mínimo 8 caracteres") String passwordNueva) {
+    }
+
+    /** Apariencia de la interfaz (selector de color de "Mi cuenta"). */
+    public record AparienciaRequest(
+            @NotNull(message = "Elige modo claro u oscuro") Tema tema,
+            @NotBlank @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Color en formato #RRGGBB") String colorAcento) {
     }
 }

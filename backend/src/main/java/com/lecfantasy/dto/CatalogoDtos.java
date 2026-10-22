@@ -25,17 +25,27 @@ public final class CatalogoDtos {
     }
 
     public record JugadorDto(Long id, String nickname, String nombreReal, Posicion posicion, EquipoProDto equipo,
-                             BigDecimal valorMercado, String fotoUrl, boolean bloqueado, String motivoBloqueo,
-                             BigDecimal puntosTotales, long partidasJugadas) {
+                             BigDecimal valorMercado, BigDecimal valorAnterior, String fotoUrl, boolean bloqueado,
+                             String motivoBloqueo, BigDecimal puntosTotales, long partidasJugadas) {
 
         public static JugadorDto of(JugadorReal j, BigDecimal puntos, long partidas) {
             return new JugadorDto(j.getId(), j.getNickname(), j.getNombreReal(), j.getPosicion(),
-                    EquipoProDto.ofNullable(j.getEquipoPro()), j.getValorMercado(), j.getFotoUrl(),
+                    EquipoProDto.ofNullable(j.getEquipoPro()), j.getValorMercado(), j.getValorAnterior(), j.getFotoUrl(),
                     j.isBloqueado(), j.getMotivoBloqueo(), puntos == null ? BigDecimal.ZERO : puntos, partidas);
         }
     }
 
-    public record JugadorDetalleDto(JugadorDto jugador, List<EstadisticaDto> historial) {
+    public record JugadorDetalleDto(JugadorDto jugador, List<EstadisticaDto> historial,
+                                    List<ValorHistoricoDto> historialValor) {
+    }
+
+    /** Un punto de la gráfica de evolución del precio. */
+    public record ValorHistoricoDto(LocalDateTime fecha, Long jornadaId, String jornada, BigDecimal valor) {
+
+        public static ValorHistoricoDto of(HistorialValor h) {
+            return new ValorHistoricoDto(h.getFecha(), h.getJornada() == null ? null : h.getJornada().getId(),
+                    h.getJornada() == null ? null : h.getJornada().getNombre(), h.getValor());
+        }
     }
 
     public record EstadisticaDto(Long partidaId, Long jornadaId, String jornada, LocalDateTime fecha,

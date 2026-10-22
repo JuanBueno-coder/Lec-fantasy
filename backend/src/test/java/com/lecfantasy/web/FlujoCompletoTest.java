@@ -65,7 +65,18 @@ class FlujoCompletoTest {
         String admin = token(enviar(post("/api/auth/login"), null,
                 Map.of("identificador", "admin@test.com", "password", "admin12345"), 200));
 
-        assertThat(enviar(get("/api/usuarios/me"), ana, null, 200).get("nombre").asText()).isEqualTo("ana_test");
+        JsonNode yoAna = enviar(get("/api/usuarios/me"), ana, null, 200);
+        assertThat(yoAna.get("nombre").asText()).isEqualTo("ana_test");
+
+        // ---------- Apariencia (selector de color de "Mi cuenta") ----------
+        assertThat(yoAna.get("tema").asText()).isEqualTo("OSCURO");
+        assertThat(yoAna.get("colorAcento").asText()).isEqualTo("#FF6B1A");
+        JsonNode apariencia = enviar(put("/api/usuarios/me/apariencia"), ana,
+                Map.of("tema", "CLARO", "colorAcento", "#1fb6ff"), 200);
+        assertThat(apariencia.get("tema").asText()).isEqualTo("CLARO");
+        assertThat(apariencia.get("colorAcento").asText()).isEqualTo("#1FB6FF");
+        enviar(put("/api/usuarios/me/apariencia"), ana, Map.of("tema", "CLARO", "colorAcento", "azul"), 400);
+        enviar(put("/api/usuarios/me/apariencia"), null, Map.of("tema", "OSCURO", "colorAcento", "#000000"), 401);
         enviar(get("/api/admin/dashboard"), ana, null, 403);
         enviar(get("/api/admin/dashboard"), null, null, 401);
 
@@ -164,6 +175,21 @@ class FlujoCompletoTest {
         JsonNode clasif = enviar(get("/api/ligas/" + ligaId + "/clasificacion"), bea, null, 200);
         assertThat(clasif.get(0).get("equipo").asText()).isEqualTo("Los de Ana");
         assertThat(enviar(get("/api/ligas/" + ligaId + "/clasificacion?jornadaId=" + j1), bea, null, 200)).hasSize(2);
+        // La clasificación trae el valor de la plantilla, los puntos de la última jornada y la racha
+        assertThat(clasif.get(0).get("valorPlantilla").decimalValue()).isPositive();
+        assertThat(clasif.get(0).get("puntosUltimaJornada").decimalValue()).isEqualByComparingTo(esperadoAna);
+        assertThat(clasif.get(0).get("racha")).hasSize(1);
+        assertThat(clasif.get(0).get("racha").get(0).get("porEncimaDeLaMedia").asBoolean()).isTrue();
+
+        // Al cerrar la jornada cambian los precios: queda el valor anterior y el historial para la gráfica
+        JsonNode fichaMid = enviar(get("/api/jugadores/" + jug.get("AlfaMid")), null, null, 200);
+        JsonNode historialMid = fichaMid.get("historialValor");
+        assertThat(historialMid).hasSize(2);
+        assertThat(historialMid.get(0).get("valor").decimalValue())
+                .isEqualByComparingTo(fichaMid.get("jugador").get("valorAnterior").decimalValue());
+        assertThat(historialMid.get(1).get("valor").decimalValue())
+                .isEqualByComparingTo(fichaMid.get("jugador").get("valorMercado").decimalValue());
+        assertThat(historialMid.get(1).get("jornadaId").asLong()).isEqualTo(j1);
         assertThat(enviar(get("/api/equipos/" + equipoAna + "/mejoras"), ana, null, 200).get(0).get("estado").asText())
                 .isEqualTo("CUMPLIDA");
         enviar(get("/api/equipos/" + equipoAna), admin, null, 200);        // el admin puede verlo

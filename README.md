@@ -7,7 +7,7 @@ misma base de datos **MySQL**.
 ```
 lec-fantasy/
 ├── backend/          API REST · Spring Boot 3.5 · Java 21 · MySQL 8 · Flyway
-├── web/              (siguiente fase) Vue 3
+├── web/              Web · Vue 3 + Vite + Vue Router + Pinia
 ├── android/          (siguiente fase) Kotlin
 ├── docs/             Modelo E-R actualizado (modelo-er.mmd / modelo-er.png)
 └── docker-compose.yml  MySQL + backend en local
@@ -17,18 +17,27 @@ lec-fantasy/
 
 | Parte | Estado |
 |---|---|
-| Base de datos (18 tablas, migraciones Flyway) | Hecho |
+| Base de datos (18 tablas, migraciones Flyway) | Hecho · tests en verde |
 | API: registro, login, Google, recuperar contraseña | Hecho |
 | API: ligas públicas/privadas, Liga Global, clasificaciones | Hecho |
 | API: mercado, plantilla, alineación, mejoras | Hecho |
 | API: jornadas, importación Leaguepedia / Oracle's Elixir, puntuación | Hecho |
 | API: panel admin (usuarios, baneos, bloqueos, noticias, reportes, actividad) | Hecho |
-| Web Vue | Pendiente |
+| Web Vue (público, juego y panel de administración) | Hecho |
 | App Android | Pendiente |
 
 ---
 
 ## 1. Arrancar el backend en tu PC
+
+> **Requisito: JDK 21 para ejecutar Gradle.** Gradle 8.14 (el máximo que admite Spring Boot 3.5)
+> no funciona con Java 25 o superior. Instálalo con
+> `winget install --id EclipseAdoptium.Temurin.21.JDK -e` y, antes de usar `gradlew`:
+> ```powershell
+> $env:JAVA_HOME = (Get-ChildItem "C:\Program Files\Eclipse Adoptium" -Directory -Filter "jdk-21*" | Select-Object -First 1).FullName
+> ```
+> o deja fijada la ruta en `C:\Users\<tu-usuario>\.gradle\gradle.properties` con
+> `org.gradle.java.home=...`.
 
 ### Opción A: con MySQL instalado (XAMPP, MySQL Workbench...)
 
@@ -64,7 +73,44 @@ MySQL. `FlujoCompletoTest` recorre el juego entero: registro, liga privada, fich
 alineación, mejora, importación del CSV, cierre de jornada, baneo, bloqueo de jugador,
 login con Google, reportes, noticias y borrado de usuario.
 
-> Gradle descarga solo el JDK 21 la primera vez si no lo encuentra (plugin *foojay*).
+> Resultado actual: 9 tests, 0 fallos.
+
+---
+
+## 1b. Arrancar la web en tu PC
+
+Necesitas Node.js 20.19 o superior.
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+Abre `http://localhost:5173`. En desarrollo, Vite redirige `/api` al backend de `localhost:8080`,
+así que arranca antes el backend. Para el botón de Google, copia `.env.example` a `.env` y rellena
+`VITE_GOOGLE_CLIENT_ID`.
+
+**Pantallas**: inicio, objetivos, cómo funciona, noticias, login, registro, recuperar contraseña ·
+juego (barra: Inicio · Mi equipo · Mercado · Mis ligas · Estadísticas · Mi cuenta): panel con cuenta atrás
+del cierre de alineación, mi equipo sobre el mapa de la Grieta (alineación, mejoras, banquillo, puntos,
+movimientos), mercado con ventana de fichaje, ficha del jugador con gráfica de precio y puntos por partida,
+ligas y clasificación con racha y detalle del rival, explorador de estadísticas, mi cuenta (apariencia,
+notificaciones, reglamento, datos y contraseña), jornadas y partida · administración: panel de control,
+usuarios y baneos, bloqueo de jugadores, jugadores y precios, jornadas e importación, noticias, reportes,
+actividad y configuración.
+
+### Apariencia (selector de color)
+
+En **Mi cuenta → Apariencia** cada usuario elige **modo oscuro o claro** y un **color de acento**
+(8 predefinidos —naranja LEC, celeste, azul, cian, verde, violeta, rosa, oro— o uno libre con el
+selector o escribiendo el hexadecimal). Se ve al momento y se guarda en su cuenta
+(`PUT /api/usuarios/me/apariencia`), así que la app Android puede leerlo de `GET /api/usuarios/me`
+(`tema`, `colorAcento`). Si un color no contrasta bien con el fondo (p. ej. oro en modo claro), la web
+usa automáticamente una versión más oscura para los textos (`web/src/utils/tema.js`).
+
+Las fuentes (Noto Sans y Noto Serif) van dentro de la web con `@fontsource`, sin depender de Google Fonts.
+En el móvil la navegación pasa a una barra inferior.
 
 ---
 
@@ -91,6 +137,9 @@ login con Google, reportes, noticias y borrado de usuario.
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | opcional, SMTP para correos |
 
 5. **Settings → Networking → Generate Domain**. Comprueba `https://<dominio>/actuator/health`.
+6. **Web**: en el mismo proyecto, **New → GitHub Repo** (el mismo repo) con **Root Directory = `web`**.
+   Variables: `VITE_API_URL` = URL pública del backend y, si usas Google, `VITE_GOOGLE_CLIENT_ID`.
+   Genera su dominio y ponlo en `CORS_ORIGINS` y `FRONTEND_URL` del backend.
 
 Sin SMTP configurado, los correos (recuperar contraseña, aviso de baneo) se escriben en el log.
 
@@ -164,7 +213,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Auth**: `POST /auth/registro`, `/auth/login`, `/auth/google`, `/auth/olvido-password`, `/auth/restablecer-password`
 
-**Usuario 🔒**: `GET|PUT /usuarios/me`, `PUT /usuarios/me/password`, `GET /usuarios/{id}`, `POST /reportes`
+**Usuario 🔒**: `GET|PUT /usuarios/me`, `PUT /usuarios/me/apariencia` (`{ tema: OSCURO|CLARO, colorAcento: "#RRGGBB" }`), `PUT /usuarios/me/password`, `GET /usuarios/{id}`, `POST /reportes`
 
 **Público**: `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jornadas`,
 `/jornadas/{id}/partidas`, `/partidas/{id}`, `/mejoras`, `/noticias`, `/noticias/{id}`, `/ligas/publicas`
@@ -197,4 +246,9 @@ Ver `docs/modelo-er.png` (los campos nuevos están marcados como NUEVO). Resumen
   id externo para importar; bloqueo de jugadores.
 - **mejora**: `condicion` + `umbral` para que el sistema pueda evaluar si se cumple.
 - **estadistica_jugador_partida**: campeón, dobles, victoria y equipo con el que jugó.
+- **V3 (apariencia y precios)**: `usuario.tema` + `usuario.color_acento`; `jugador_real.valor_anterior`
+  (variación ▲/▼ del mercado) y la tabla nueva `historial_valor` (un registro por cambio de precio al
+  cerrar jornada o al editarlo el admin), que alimenta la gráfica de evolución del precio.
+  La clasificación (`GET /ligas/{id}/clasificacion`) devuelve además `puntosUltimaJornada`,
+  `valorPlantilla` y `racha` (últimas 5 jornadas, por encima o por debajo de la media de la liga).
 - Tipos `int` → `BIGINT` en las claves y `puntos` en decimal (los puntos llevan decimales por el CS y la visión).

@@ -18,4 +18,8 @@ public interface PuntuacionJornadaRepository extends JpaRepository<PuntuacionJor
 
     @Query("select p from PuntuacionJornada p join fetch p.jornada j where p.equipo.id = :equipoId order by j.fechaInicio asc")
     List<PuntuacionJornada> findByEquipo(@Param("equipoId") Long equipoId);
+
+    /** Puntuaciones de todos los equipos de una liga (para la racha de la clasificación). */
+    @Query("select p from PuntuacionJornada p join fetch p.jornada j where p.equipo.grupo.id = :grupoId order by j.fechaInicio asc")
+    List<PuntuacionJornada> findByGrupo(@Param("grupoId") Long grupoId);
 }

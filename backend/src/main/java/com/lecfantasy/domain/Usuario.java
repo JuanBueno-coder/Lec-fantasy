@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Usuario {
 
+    /** Naranja LEC: el acento con el que empieza cualquier cuenta. */
+    public static final String COLOR_ACENTO_POR_DEFECTO = "#FF6B1A";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_usuario")
@@ -51,6 +54,15 @@ public class Usuario {
     private LocalDateTime fechaRegistro;
 
     private LocalDateTime ultimoAcceso;
+
+    /** Apariencia elegida en "Mi cuenta": OSCURO o CLARO. La comparten la web y la app. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Tema tema = Tema.OSCURO;
+
+    /** Color de acento en hexadecimal (#RRGGBB). */
+    @Column(nullable = false, length = 7)
+    private String colorAcento = COLOR_ACENTO_POR_DEFECTO;
 
     /** Los usuarios que entran con Google deben completar fecha de nacimiento y país. */
     public boolean isPerfilCompleto() {

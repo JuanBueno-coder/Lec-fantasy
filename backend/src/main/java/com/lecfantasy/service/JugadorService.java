@@ -24,11 +24,14 @@ public class JugadorService {
     private final EstadisticaRepository estadisticas;
     private final PlantillaJugadorRepository plantillas;
     private final TransaccionRepository transacciones;
+    private final HistorialValorRepository historialValor;
     private final ActividadService actividad;
 
     public JugadorService(JugadorRealRepository jugadores, EquipoProRepository equiposPro,
                           EstadisticaRepository estadisticas, PlantillaJugadorRepository plantillas,
-                          TransaccionRepository transacciones, ActividadService actividad) {
+                          TransaccionRepository transacciones, HistorialValorRepository historialValor,
+                          ActividadService actividad) {
+        this.historialValor = historialValor;
         this.jugadores = jugadores;
         this.equiposPro = equiposPro;
         this.estadisticas = estadisticas;
@@ -72,7 +75,8 @@ public class JugadorService {
         JugadorReal j = obtener(id);
         List<EstadisticaDto> historial = estadisticas.findByJugador(id).stream().map(EstadisticaDto::of).toList();
         BigDecimal puntos = historial.stream().map(EstadisticaDto::puntos).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new JugadorDetalleDto(JugadorDto.of(j, puntos, historial.size()), historial);
+        List<ValorHistoricoDto> valores = historialValor.findByJugador(id).stream().map(ValorHistoricoDto::of).toList();
+        return new JugadorDetalleDto(JugadorDto.of(j, puntos, historial.size()), historial, valores);
     }
 
     @Transactional(readOnly = true)
@@ -89,6 +93,7 @@ public class JugadorService {
         }
         JugadorReal j = new JugadorReal();
         aplicar(j, req);
+        j.setValorMercado(precio(req));
         jugadores.save(j);
         actividad.registrar(admin, TipoActividad.CREAR_JUGADOR, admin.nombre() + " creó el jugador «" + j.getNickname() + "»");
         return dto(j, resumenes());
@@ -104,8 +109,11 @@ public class JugadorService {
                 });
         BigDecimal valorAnterior = j.getValorMercado();
         aplicar(j, req);
-        String cambioPrecio = valorAnterior.compareTo(j.getValorMercado()) != 0
-                ? " (precio " + valorAnterior.toPlainString() + " → " + j.getValorMercado().toPlainString() + ")" : "";
+        String cambioPrecio = "";
+        if (j.cambiarValor(precio(req))) {
+            historialValor.registrarCambio(j, null, LocalDateTime.now());
+            cambioPrecio = " (precio " + valorAnterior.toPlainString() + " → " + j.getValorMercado().toPlainString() + ")";
+        }
         actividad.registrar(admin, TipoActividad.EDITAR_JUGADOR,
                 admin.nombre() + " editó al jugador «" + j.getNickname() + "»" + cambioPrecio);
         return dto(j, resumenes());
@@ -180,8 +188,11 @@ public class JugadorService {
         j.setPosicion(req.posicion());
         j.setEquipoPro(req.equipoId() == null ? null
                 : equiposPro.findById(req.equipoId()).orElseThrow(() -> ApiException.peticionInvalida("Equipo no válido")));
-        j.setValorMercado(req.valorMercado().setScale(2, java.math.RoundingMode.HALF_UP));
         j.setFotoUrl(AuthService.vacioANull(req.fotoUrl()));
+    }
+
+    private static BigDecimal precio(JugadorRequest req) {
+        return req.valorMercado().setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private JugadorReal obtener(Long id) {

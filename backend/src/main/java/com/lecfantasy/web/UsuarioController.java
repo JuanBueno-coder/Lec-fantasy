@@ -33,6 +33,11 @@ public class UsuarioController {
         return usuarios.actualizar(yo.id(), req);
     }
 
+    @PutMapping("/usuarios/me/apariencia")
+    public UsuarioPrivado apariencia(@AuthenticationPrincipal AuthUser yo, @Valid @RequestBody AparienciaRequest req) {
+        return usuarios.cambiarApariencia(yo.id(), req);
+    }
+
     @PutMapping("/usuarios/me/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarPassword(@AuthenticationPrincipal AuthUser yo, @Valid @RequestBody CambiarPasswordRequest req) {

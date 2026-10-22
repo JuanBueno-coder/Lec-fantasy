@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public final class LigaDtos {
 
@@ -43,7 +44,16 @@ public final class LigaDtos {
         }
     }
 
+    /**
+     * puntosUltimaJornada: puntos en la última jornada cerrada (null si no ha puntuado nunca).
+     * racha: últimas 5 jornadas, de la más antigua a la más reciente.
+     */
     public record ClasificacionFila(int posicion, Long equipoId, String equipo, Long usuarioId, String usuario,
-                                    BigDecimal puntos) {
+                                    BigDecimal puntos, BigDecimal puntosUltimaJornada, BigDecimal valorPlantilla,
+                                    List<RachaDto> racha) {
+    }
+
+    /** Resultado de un equipo en una jornada: por encima o por debajo de la media de su liga. */
+    public record RachaDto(Long jornadaId, String jornada, BigDecimal puntos, boolean porEncimaDeLaMedia) {
     }
 }

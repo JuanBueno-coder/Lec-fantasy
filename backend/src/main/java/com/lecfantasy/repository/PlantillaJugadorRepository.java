@@ -23,4 +23,8 @@ public interface PlantillaJugadorRepository extends JpaRepository<PlantillaJugad
 
     @Query("select p from PlantillaJugador p join fetch p.equipo join fetch p.jugador")
     List<PlantillaJugador> findAllConEquipoYJugador();
+
+    /** [idEquipo, suma del valor de mercado] de cada equipo de una liga. */
+    @Query("select p.equipo.id, sum(p.jugador.valorMercado) from PlantillaJugador p where p.equipo.grupo.id = :grupoId group by p.equipo.id")
+    List<Object[]> valorPlantillasPorGrupo(@Param("grupoId") Long grupoId);
 }

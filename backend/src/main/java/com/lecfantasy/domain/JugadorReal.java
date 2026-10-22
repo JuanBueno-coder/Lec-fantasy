@@ -35,6 +35,20 @@ public class JugadorReal {
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal valorMercado;
 
+    /** Valor antes del último cambio de precio (para mostrar la variación). Null si nunca ha cambiado. */
+    @Column(precision = 14, scale = 2)
+    private BigDecimal valorAnterior;
+
+    /** Cambia el precio guardando el anterior. Devuelve true si ha cambiado. */
+    public boolean cambiarValor(BigDecimal nuevo) {
+        if (valorMercado != null && valorMercado.compareTo(nuevo) == 0) {
+            return false;
+        }
+        valorAnterior = valorMercado;
+        valorMercado = nuevo;
+        return true;
+    }
+
     private String fotoUrl;
 
     /** Identificador en la fuente externa (Leaguepedia / Oracle's Elixir). */
