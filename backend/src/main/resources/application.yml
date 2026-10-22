@@ -62,3 +62,19 @@ app:
   leaguepedia:
     url: https://lol.fandom.com/api.php
     user-agent: LECFantasyTFG/1.0 (proyecto de fin de grado)
+  # Jornadas automáticas con Leaguepedia (ver service/AutomatizacionJornadas.java).
+  # Cron de Spring: segundo minuto hora día mes día-de-la-semana.
+  automatizacion:
+    habilitada: ${AUTOMATIZACION_HABILITADA:true}
+    zona: Europe/Madrid
+    cron-inicio: ${AUTOMATIZACION_CRON_INICIO:0 5 * * * *}             # cada hora, a y 5
+    cron-importacion: ${AUTOMATIZACION_CRON_IMPORTACION:0 0 9 * * MON} # los lunes a las 9:00
+    cron-calendario: ${AUTOMATIZACION_CRON_CALENDARIO:0 30 8 * * *}    # cada día a las 8:30 (PandaScore)
+    finalizar: ${AUTOMATIZACION_FINALIZAR:true}
+  # Calendario de la LEC (crear jornadas y próximos partidos). La key va SOLO en la variable de entorno.
+  pandascore:
+    url: https://api.pandascore.co
+    token: ${PANDASCORE_TOKEN:}
+    liga-id: ${PANDASCORE_LIGA_ID:}
+    liga-nombre: LEC
+    dias-calendario: 21

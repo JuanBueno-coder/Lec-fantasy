@@ -42,7 +42,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/noticias/**", "/api/equipos-pro/**",
                                 "/api/jugadores/**", "/api/jornadas/**", "/api/partidas/**",
-                                "/api/mejoras/**", "/api/ligas/publicas").permitAll()
+                                "/api/mejoras/**", "/api/ligas/publicas", "/api/calendario").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o.jwt(jwt -> jwt.jwtAuthenticationConverter(

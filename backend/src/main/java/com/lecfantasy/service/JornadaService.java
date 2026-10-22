@@ -103,7 +103,7 @@ public class JornadaService {
         Jornada j = new Jornada();
         aplicar(j, req);
         jornadas.save(j);
-        actividad.registrar(admin, TipoActividad.JORNADA, admin.nombre() + " creó la jornada «" + j.getNombre() + "»");
+        actividad.registrar(admin, TipoActividad.JORNADA, quien(admin) + " creó la jornada «" + j.getNombre() + "»");
         return JornadaDto.of(j);
     }
 
@@ -143,7 +143,7 @@ public class JornadaService {
             throw ApiException.conflicto("Ya hay otra jornada en curso");
         }
         j.setEstado(EstadoJornada.EN_CURSO);
-        actividad.registrar(admin, TipoActividad.JORNADA, admin.nombre() + " inició la jornada «" + j.getNombre()
+        actividad.registrar(admin, TipoActividad.JORNADA, quien(admin) + " inició la jornada «" + j.getNombre()
                 + "» (mercado cerrado)");
         return JornadaDto.of(j);
     }
@@ -270,7 +270,7 @@ public class JornadaService {
 
         j.setEstado(EstadoJornada.FINALIZADA);
         j.setFechaFinalizacion(LocalDateTime.now());
-        actividad.registrar(admin, TipoActividad.JORNADA, admin.nombre() + " finalizó la jornada «" + j.getNombre()
+        actividad.registrar(admin, TipoActividad.JORNADA, quien(admin) + " finalizó la jornada «" + j.getNombre()
                 + "»: " + todos.size() + " equipos puntuados");
         return new FinalizacionResultado(JornadaDto.of(j), todos.size(), cumplidas, fallidas, precios);
     }
@@ -324,8 +324,19 @@ public class JornadaService {
         return j;
     }
 
+    /** Nombre para el registro de actividad: el admin o, si actúa la tarea programada, "El sistema". */
+    private static String quien(AuthUser admin) {
+        return admin == null ? "El sistema (automático)" : admin.nombre();
+    }
+
+    /** Partidas importadas en una jornada (la tarea automática solo cierra jornadas con datos). */
+    @Transactional(readOnly = true)
+    public int numeroPartidas(Long jornadaId) {
+        return partidas.findByJornada(jornadaId).size();
+    }
+
     private void registrarImportacion(AuthUser admin, Jornada j, String fuente, ImportResultado r) {
-        actividad.registrar(admin, TipoActividad.IMPORTACION, admin.nombre() + " importó " + r.partidasImportadas()
+        actividad.registrar(admin, TipoActividad.IMPORTACION, quien(admin) + " importó " + r.partidasImportadas()
                 + " partidas desde " + fuente + " en «" + j.getNombre() + "»");
     }
 

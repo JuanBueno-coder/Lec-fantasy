@@ -10,6 +10,8 @@ import com.lecfantasy.service.JornadaService;
 import com.lecfantasy.service.JugadorService;
 import com.lecfantasy.service.MejoraService;
 import com.lecfantasy.service.NoticiaService;
+import com.lecfantasy.service.calendario.CalendarioService;
+import com.lecfantasy.service.calendario.PartidoCalendario;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,13 +26,24 @@ public class CatalogoController {
     private final JornadaService jornadas;
     private final MejoraService mejoras;
     private final NoticiaService noticias;
+    private final CalendarioService calendario;
 
     public CatalogoController(JugadorService jugadores, JornadaService jornadas, MejoraService mejoras,
-                              NoticiaService noticias) {
+                              NoticiaService noticias, CalendarioService calendario) {
+        this.calendario = calendario;
         this.jugadores = jugadores;
         this.jornadas = jornadas;
         this.mejoras = mejoras;
         this.noticias = noticias;
+    }
+
+    /**
+     * Próximos partidos de la LEC (y los de las últimas 12 horas) según PandaScore.
+     * Lista vacía si no hay PANDASCORE_TOKEN. La key se queda en el servidor.
+     */
+    @GetMapping("/calendario")
+    public List<PartidoCalendario> calendario() {
+        return calendario.proximos();
     }
 
     @GetMapping("/equipos-pro")

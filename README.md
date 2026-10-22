@@ -73,7 +73,7 @@ MySQL. `FlujoCompletoTest` recorre el juego entero: registro, liga privada, fich
 alineación, mejora, importación del CSV, cierre de jornada, baneo, bloqueo de jugador,
 login con Google, reportes, noticias y borrado de usuario.
 
-> Resultado actual: 9 tests, 0 fallos.
+> Resultado actual: 13 tests, 0 fallos (`AutomatizacionTest` y `CalendarioTest` comprueban el modo automático y PandaScore).
 
 ---
 
@@ -201,6 +201,50 @@ El administrador gestiona cada jornada así:
 4. **Previsualizar** los puntos ("validar puntos").
 5. **Finalizar** → puntúa a todos los equipos, resuelve mejoras, actualiza precios y reabre el mercado.
 
+### Modo automático (por defecto, activado)
+
+El backend lleva las jornadas solo, con datos de Leaguepedia (`service/AutomatizacionJornadas.java`):
+
+- **Cada hora**: si hoy es la fecha de inicio de una jornada programada (y no hay otra en curso), la
+  **inicia** → se cierran el mercado y las alineaciones.
+- **Cada lunes a las 9:00** (hora de Madrid): para cada jornada en curso que ya ha terminado,
+  **importa** sus partidas de Leaguepedia y la **finaliza** (puntos, mejoras y precios). Si Leaguepedia
+  todavía no las tiene, la deja en curso y lo reintenta en la siguiente ejecución.
+- Todo queda en el registro de actividad como «El sistema (automático)». En **Administración → Jornadas**
+  se ve el estado, la última ejecución y un botón **Ejecutar ahora** (`POST /api/admin/automatizacion/ejecutar`).
+
+- **Cada día a las 8:30**, si hay key de PandaScore (ver abajo): **crea las jornadas** de las próximas 3 semanas
+  con partidos de la LEC (una por semana, del primer al último partido) y copia logos y siglas a los equipos.
+
+Con PandaScore el administrador no tiene que hacer nada; sin él, solo **crear las jornadas con sus fechas** (y, si quiere,
+la página de Leaguepedia). Se configura con variables de entorno:
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `AUTOMATIZACION_HABILITADA` | `true` | `false` para gestionar las jornadas a mano |
+| `AUTOMATIZACION_CRON_IMPORTACION` | `0 0 9 * * MON` | cuándo importar y cerrar (segundo minuto hora día mes día-semana) |
+| `AUTOMATIZACION_CRON_INICIO` | `0 5 * * * *` | cada cuánto comprobar si toca iniciar una jornada |
+| `AUTOMATIZACION_FINALIZAR` | `true` | `false` para que solo importe y el admin revise los puntos antes de cerrar |
+
+### Calendario con PandaScore (opcional)
+
+[PandaScore](https://pandascore.co) da gratis (plan *Fixtures Only*) el calendario y los resultados de la LEC,
+pero **no** las estadísticas de cada jugador, así que los puntos siguen saliendo de Leaguepedia / Oracle's Elixir.
+Con la key, la web muestra en el panel los **próximos partidos** (con cuántos jugadores tuyos juegan) y las
+jornadas se crean solas.
+
+1. Copia tu token de https://app.pandascore.co/dashboard.
+2. Ponlo **solo** como variable de entorno del backend: `PANDASCORE_TOKEN=...` (Railway → Variables;
+   en local, `$env:PANDASCORE_TOKEN="..."` antes de `gradlew bootRun`). No lo escribas en el código, en
+   `application.yml` ni en la web: el backend lo usa por ti y lo que llega al navegador es `GET /api/calendario`.
+3. Opcional: `PANDASCORE_LIGA_ID` si la búsqueda automática de la liga «LEC» no la encuentra.
+
+El panel guarda el calendario 15 minutos en memoria para no gastar peticiones (el plan gratuito permite 1.000/hora).
+
+> Leaguepedia no incluye multikills ni first blood: con el modo automático las mejoras de Triple/Quadra/Penta
+> Kill y First Blood no se cumplen nunca. Si las usas, sube el CSV de Oracle's Elixir antes del lunes
+> (o pon `AUTOMATIZACION_FINALIZAR=false` y cierra a mano tras subirlo).
+
 > Usa una sola fuente por jornada: Leaguepedia y Oracle's Elixir identifican las partidas de
 > forma distinta y se contarían dos veces.
 
@@ -215,7 +259,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Usuario 🔒**: `GET|PUT /usuarios/me`, `PUT /usuarios/me/apariencia` (`{ tema: OSCURO|CLARO, colorAcento: "#RRGGBB" }`), `PUT /usuarios/me/password`, `GET /usuarios/{id}`, `POST /reportes`
 
-**Público**: `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jornadas`,
+**Público**: `GET /calendario` (próximos partidos, PandaScore), `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jornadas`,
 `/jornadas/{id}/partidas`, `/partidas/{id}`, `/mejoras`, `/noticias`, `/noticias/{id}`, `/ligas/publicas`
 
 **Ligas 🔒**: `GET /ligas/mias`, `POST /ligas`, `POST /ligas/unirse` (código), `GET /ligas/{id}`,
@@ -230,7 +274,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 `DELETE /admin/usuarios/{id}`, `GET|POST /admin/jugadores`, `PUT /admin/jugadores/{id}`,
 `POST|DELETE /admin/jugadores/{id}/bloqueo`, `POST|PUT /admin/equipos-pro`, `POST|PUT|DELETE /admin/jornadas`,
 `POST /admin/jornadas/{id}/iniciar`, `/importar/leaguepedia`, `/importar/csv`, `GET /previsualizacion`,
-`POST /finalizar`, `DELETE /admin/partidas/{id}`, `GET|POST|PUT /admin/mejoras`,
+`POST /finalizar`, `GET /admin/automatizacion`, `POST /admin/automatizacion/ejecutar`, `DELETE /admin/partidas/{id}`, `GET|POST|PUT /admin/mejoras`,
 `GET|POST|PUT|DELETE /admin/noticias`, `GET /admin/reportes?estado=`, `POST /admin/reportes/{id}/resolver`
 
 ---

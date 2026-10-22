@@ -14,7 +14,9 @@ public record AppProperties(
         Admin admin,
         Juego juego,
         Mail mail,
-        Leaguepedia leaguepedia) {
+        Leaguepedia leaguepedia,
+        Automatizacion automatizacion,
+        PandaScore pandascore) {
 
     public record Jwt(String secret, long expiracionHoras, long expiracionRecordarmeDias) {
     }
@@ -37,5 +39,24 @@ public record AppProperties(
     }
 
     public record Leaguepedia(String url, String userAgent) {
+    }
+
+    /**
+     * Gestión automática de jornadas con datos de Leaguepedia.
+     * habilitada: activa las tareas programadas (el botón "Ejecutar ahora" del admin funciona siempre).
+     * cronInicio: cuándo se comprueba si hay que iniciar una jornada (cierra el mercado el día de inicio).
+     * cronImportacion: cuándo se importan y cierran las jornadas ya terminadas (por defecto, los lunes).
+     * finalizar: si es false solo importa y el admin revisa los puntos antes de cerrar a mano.
+     */
+    public record Automatizacion(boolean habilitada, String zona, String cronInicio, String cronImportacion,
+                                 String cronCalendario, boolean finalizar) {
+    }
+
+    /**
+     * API de PandaScore (calendario y resultados). token vacío = desactivado.
+     * ligaId: id de la LEC en PandaScore; si no se indica se busca por ligaNombre.
+     * diasCalendario: cuántos días hacia delante se miran para crear jornadas y mostrar partidos.
+     */
+    public record PandaScore(String url, String token, Long ligaId, String ligaNombre, int diasCalendario) {
     }
 }

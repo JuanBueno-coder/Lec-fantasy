@@ -32,9 +32,12 @@ public class AdminController {
     private final MejoraService mejoras;
     private final NoticiaService noticias;
     private final ReporteService reportes;
+    private final AutomatizacionJornadas automatizacion;
 
     public AdminController(AdminUsuarioService usuarios, JugadorService jugadores, JornadaService jornadas,
-                           MejoraService mejoras, NoticiaService noticias, ReporteService reportes) {
+                           MejoraService mejoras, NoticiaService noticias, ReporteService reportes,
+                           AutomatizacionJornadas automatizacion) {
+        this.automatizacion = automatizacion;
         this.usuarios = usuarios;
         this.jugadores = jugadores;
         this.jornadas = jornadas;
@@ -179,6 +182,18 @@ public class AdminController {
     @GetMapping("/jornadas/{id}/previsualizacion")
     public PrevisualizacionDto previsualizar(@PathVariable Long id) {
         return jornadas.previsualizar(id);
+    }
+
+    /** Estado de la gestión automática de jornadas (Leaguepedia). */
+    @GetMapping("/automatizacion")
+    public AutomatizacionJornadas.Estado automatizacion() {
+        return automatizacion.estado();
+    }
+
+    /** Ejecuta ahora la importación y el cierre/inicio automáticos de jornadas. */
+    @PostMapping("/automatizacion/ejecutar")
+    public AutomatizacionJornadas.Ejecucion ejecutarAutomatizacion(@AuthenticationPrincipal AuthUser admin) {
+        return automatizacion.ejecutar(admin);
     }
 
     @PostMapping("/jornadas/{id}/finalizar")

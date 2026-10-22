@@ -8,6 +8,28 @@
       <b class="texto-acento">Ciclo de una jornada:</b>
       1. Crear (programada) → 2. Iniciar (cierra el mercado) → 3. Importar partidas → 4. Validar puntos → 5. Finalizar (puntúa equipos, resuelve mejoras, actualiza precios y abre el mercado).
     </div>
+    <div v-if="auto" class="tarjeta auto mt" :class="{ 'tarjeta-acento': auto.habilitada }">
+      <div class="fila-entre">
+        <div>
+          <span class="kicker">Modo automático · Leaguepedia</span>
+          <h3 class="sin-margen">{{ auto.habilitada ? 'Activado' : 'Desactivado' }}</h3>
+          <span class="tenue">
+            Inicia cada jornada el día de su fecha de inicio y, {{ textoCron(auto.cronImportacion) }}, importa las partidas
+            de las jornadas ya terminadas{{ auto.finalizar ? ' y las finaliza' : ' (la finalización la haces tú)' }}.
+            Zona horaria: {{ auto.zona }}.
+          </span>
+          <span class="tenue">
+            <template v-if="auto.calendario">Calendario PandaScore <b class="texto-verde">conectado</b>: cada día crea las jornadas de las próximas semanas con partidos de la LEC.</template>
+            <template v-else>Calendario PandaScore <b>sin configurar</b>: añade la variable de entorno <code>PANDASCORE_TOKEN</code> para que las jornadas se creen solas.</template>
+          </span>
+        </div>
+        <button class="btn btn-borde" :disabled="ocupado" @click="ejecutarAuto">Ejecutar ahora</button>
+      </div>
+      <div v-if="auto.ultima" class="ultima">
+        <span class="micro">Última ejecución · {{ fechaHora(auto.ultima.fecha) }} · {{ auto.ultima.manual ? 'manual' : 'programada' }}</span>
+        <ul><li v-for="(a, i) in auto.ultima.acciones" :key="i">{{ a }}</li></ul>
+      </div>
+    </div>
     <Alerta :mensaje="mensaje" :tipo="mensajeTipo" class="mt" />
 
     <div class="pila mt">
@@ -127,6 +149,32 @@ const csvJornada = ref(null)
 const archivo = ref(null)
 const liga = ref('LEC')
 const previa = ref(null)
+const auto = ref(null)
+const DIAS = { MON: 'los lunes', TUE: 'los martes', WED: 'los miércoles', THU: 'los jueves', FRI: 'los viernes', SAT: 'los sábados', SUN: 'los domingos', '*': 'cada día' }
+
+/** "0 0 9 * * MON" → "los lunes a las 9:00" */
+function textoCron(cron) {
+  const p = (cron || '').split(' ')
+  if (p.length !== 6) return `según «${cron}»`
+  return `${DIAS[p[5]] || `con el cron «${cron}»`} a las ${p[2]}:${p[1].padStart(2, '0')}`
+}
+
+async function cargarAuto() {
+  auto.value = await api.get('/admin/automatizacion').catch(() => null)
+}
+
+async function ejecutarAuto() {
+  ocupado.value = true
+  try {
+    const r = await api.post('/admin/automatizacion/ejecutar')
+    avisar(r.acciones.join(' '), 'ok')
+    await Promise.all([cargar(), cargarAuto()])
+  } catch (e) {
+    avisar(e.message, 'error')
+  } finally {
+    ocupado.value = false
+  }
+}
 const resultadoImport = reactive({})
 const partidasDe = reactive({})
 
@@ -248,10 +296,18 @@ const finalizar = (j) => confirm(`¿Finalizar ${j.nombre}? Se puntuará a todos 
   accion(() => api.post(`/admin/jornadas/${j.id}/finalizar`),
     (r) => `${j.nombre} finalizada: ${r.equiposPuntuados} equipos puntuados, ${r.mejorasCumplidas} mejoras cumplidas, ${r.mejorasFallidas} fallidas, ${r.preciosActualizados} precios actualizados. Mercado abierto.`)
 
-onMounted(() => cargar().catch((e) => avisar(e.message, 'error')))
+onMounted(() => {
+  cargar().catch((e) => avisar(e.message, 'error'))
+  cargarAuto()
+})
 </script>
 
 <style scoped>
+.auto h3 { margin: 2px 0 4px; }
+.auto .tenue { display: block; max-width: 760px; }
+.auto .tenue + .tenue { margin-top: 6px; }
+.ultima { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--borde); }
+.ultima ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.86rem; color: var(--texto-2); }
 .pasos { margin-top: 8px; }
 .sin-margen { margin: 0; }
 .acciones { gap: 8px; }

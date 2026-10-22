@@ -14,3 +14,16 @@ app:
     email: admin@test.com
     password: admin12345
     nombre: admin_test
+  # En los tests las tareas programadas no se disparan solas; se llaman a mano
+  automatizacion:
+    habilitada: false
+    zona: Europe/Madrid
+    cron-inicio: "-"
+    cron-importacion: "-"
+    cron-calendario: "-"
+    finalizar: true
+  pandascore:
+    url: http://localhost:9
+    token: ""
+    liga-nombre: LEC
+    dias-calendario: 21

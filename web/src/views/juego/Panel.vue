@@ -52,10 +52,34 @@
           </RouterLink>
 
           <div v-if="cargando" class="cargando">Cargando…</div>
+          <!-- Calendario real de la LEC (PandaScore), si el servidor tiene la key -->
+          <template v-else-if="calendario.length">
+            <div v-for="p in calendario" :key="'c' + p.id" class="partido" :class="{ vivo: p.estado === 'running' }">
+              <span class="tenue hora">
+                <span v-if="p.estado === 'running'" class="chip chip-solido">En directo</span>
+                <template v-else>{{ fechaHora(p.fecha) }}</template>
+              </span>
+              <span class="lado" :class="{ gana: p.ganadorId && p.ganadorId === p.equipoA.id }">
+                <InsigniaEquipo :equipo="comoEquipo(p.equipoA)" nombre="siglas" />
+              </span>
+              <span class="vs">
+                <template v-if="p.marcadorA !== null && p.estado !== 'not_started'">{{ p.marcadorA }} – {{ p.marcadorB }}</template>
+                <template v-else>{{ p.mejorDe > 1 ? `Bo${p.mejorDe}` : 'vs' }}</template>
+              </span>
+              <span class="lado der" :class="{ gana: p.ganadorId && p.ganadorId === p.equipoB.id }">
+                <InsigniaEquipo :equipo="comoEquipo(p.equipoB)" nombre="siglas" />
+              </span>
+              <span class="mios">
+                <template v-if="misEnCalendario(p)">
+                  <Icono nombre="estrella" :tam="13" /> {{ misEnCalendario(p) }} de tus jugadores
+                </template>
+              </span>
+            </div>
+          </template>
           <div v-else-if="!partidas.length" class="vacio">
             {{ jornadaPartidos ? 'Las partidas aparecerán cuando se importen los resultados.' : 'Todavía no hay jornadas en el calendario.' }}
           </div>
-          <RouterLink v-for="p in partidas" :key="p.id" :to="`/partidas/${p.id}`" class="partido">
+          <RouterLink v-for="p in calendario.length ? [] : partidas" :key="p.id" :to="`/partidas/${p.id}`" class="partido">
             <span class="tenue hora">{{ fechaHora(p.fechaHora) }}</span>
             <span class="lado" :class="{ gana: p.ganador?.id === p.equipoAzul?.id }">
               <InsigniaEquipo :equipo="p.equipoAzul" nombre="siglas" />
@@ -136,12 +160,14 @@ import { api } from '../../api/cliente'
 import { useAuth } from '../../stores/auth'
 import { useJuego } from '../../stores/juego'
 import { enteroEs, fecha, fechaHora, iniciales, millones, ordinal, puntos } from '../../utils/formato'
+import { siglasEquipo } from '../../utils/equipos'
 
 const auth = useAuth()
 const juego = useJuego()
 const route = useRoute()
 const noticias = ref([])
 const partidas = ref([])
+const calendario = ref([])
 const puntuaciones = ref([])
 const cargando = ref(true)
 const error = ref('')
@@ -157,6 +183,7 @@ const ultimaPuntuacion = computed(() => puntuaciones.value[puntuaciones.value.le
 // Partidos: la jornada en juego o, si no hay, los últimos resultados
 const jornadaPartidos = computed(() => juego.enCurso || juego.ultimaFinalizada)
 const tituloPartidos = computed(() => {
+  if (calendario.value.length) return juego.proxima ? `Próximos partidos · ${juego.proxima.nombre}` : 'Próximos partidos'
   if (!jornadaPartidos.value) return 'Partidos'
   return `${juego.enCurso ? 'En juego' : 'Últimos resultados'} · ${jornadaPartidos.value.nombre}`
 })
@@ -172,6 +199,18 @@ const misEquiposPro = computed(() => {
   })
   return mapa
 })
+// En el calendario los equipos vienen de PandaScore: se cruzan por siglas
+const misPorSiglas = computed(() => {
+  const mapa = {}
+  activo.value?.plantilla.forEach((p) => {
+    const s = siglasEquipo(p.jugador.equipo)
+    mapa[s] = (mapa[s] || 0) + 1
+  })
+  return mapa
+})
+const comoEquipo = (e) => ({ nombre: e.nombre, siglas: e.siglas, logoUrl: e.logoUrl })
+const misEnCalendario = (p) => (misPorSiglas.value[siglasEquipo(comoEquipo(p.equipoA))] || 0) +
+  (misPorSiglas.value[siglasEquipo(comoEquipo(p.equipoB))] || 0)
 const misJugadoresEn = (p) => (misEquiposPro.value[p.equipoAzul?.id] || 0) + (misEquiposPro.value[p.equipoRojo?.id] || 0)
 const posicionEn = (l) => {
   const e = juego.equipos[l.miEquipoId]
@@ -189,11 +228,14 @@ async function cargarDependientes() {
 
 onMounted(async () => {
   try {
-    const [ns] = await Promise.all([
+    const [ns, cal] = await Promise.all([
       api.get('/noticias', { tamano: 3 }).catch(() => ({ contenido: [] })),
+      api.get('/calendario').catch(() => []),
       juego.cargar(true)
     ])
     noticias.value = ns.contenido
+    // Partidos de hoy en adelante (y los que se están jugando), máximo 8
+    calendario.value = cal.filter((p) => p.estado === 'running' || p.estado === 'not_started' || p.estado === 'postponed').slice(0, 8)
     await cargarDependientes()
   } catch (e) {
     error.value = e.message
@@ -243,6 +285,7 @@ watch(() => juego.activoId, () => cargarDependientes().catch(() => {}))
 .vs { text-align: center; color: var(--texto-3); font-size: 0.72rem; font-weight: 600; }
 .mios { display: flex; align-items: center; gap: 5px; justify-content: flex-end; color: var(--acento-tinta); font-size: 0.72rem; font-weight: 700; }
 .hora { font-weight: 500; }
+.partido.vivo { background: var(--acento-suave); }
 .noticia { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: var(--radio-peque); background: var(--tarjeta-2); color: var(--texto); border: 1px solid var(--borde); }
 .noticia:hover { text-decoration: none; border-color: var(--acento-borde); }
 .ligas { gap: 8px; }
