@@ -114,7 +114,7 @@
         <div class="vista-previa">
           <span class="micro">Vista previa</span>
           <p><b>{{ fm.nombre || 'Mejora' }}</b> <span class="chip chip-solido">{{ etiquetaEfecto(fm) }}</span>
-            <span class="tenue">{{ fm.precioM ? millones(fm.precioM * 1e6) : 'Gratis' }}</span></p>
+            <span class="tenue precio-previa">{{ fm.precioM ? millones(fm.precioM * 1e6) : 'Gratis' }}</span></p>
           <p class="sin-margen">{{ textoRegla(fm) }}</p>
         </div>
         <Alerta :mensaje="errorModal" />
@@ -234,5 +234,6 @@ onMounted(() => cargar().catch((e) => { mensajeTipo.value = 'error'; mensaje.val
 .activa { align-self: center; }
 .vista-previa { padding: 12px 14px; border-radius: 10px; background: var(--acento-suave); border: 1px solid var(--acento-borde); }
 .vista-previa p { margin: 6px 0 0; }
+.precio-previa { margin-left: 6px; }
 @media (max-width: 620px) { .bloque .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 </style>

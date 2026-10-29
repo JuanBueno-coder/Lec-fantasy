@@ -72,9 +72,7 @@
                 <span class="rol">{{ s }}</span>
                 <span class="texto-pend">
                   <b :class="{ tenue: !porSlot[s] }">{{ porSlot[s]?.jugador.nickname || 'Hueco libre' }}</b>
-                  <span v-if="asignadaA(porSlot[s])" class="tenue">
-                    {{ asignadaA(porSlot[s]).mejora.nombre }} · {{ etiquetaEfecto(asignadaA(porSlot[s]).mejora) }}
-                  </span>
+                  <span v-if="asignadaA(porSlot[s])" class="tenue">{{ asignadaA(porSlot[s]).mejora.nombre }}</span>
                 </span>
                 <template v-if="asignadaA(porSlot[s])">
                   <span class="chip chip-solido">{{ etiquetaEfecto(asignadaA(porSlot[s]).mejora) }}</span>
@@ -501,6 +499,7 @@ watch(() => route.params.id, (id) => {
 
 <style scoped>
 .cabeza { margin-bottom: 18px; align-items: flex-end; }
+.cabeza > .fila, .cabeza .pildoras { min-width: 0; max-width: 100%; }
 .mapa-tarjeta { padding: 16px; }
 .mapa-cabeza { margin-bottom: 12px; }
 .barra-seleccion {
