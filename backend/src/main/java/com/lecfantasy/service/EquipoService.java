@@ -25,11 +25,12 @@ public class EquipoService {
     private final PuntuacionJornadaRepository puntuaciones;
     private final JornadaRepository jornadas;
     private final JugadorService jugadorService;
+    private final MejoraAplicadaRepository mejorasAplicadas;
 
     public EquipoService(EquipoFantasyRepository equipos, PlantillaJugadorRepository plantillas,
                          JugadorRealRepository jugadores, TransaccionRepository transacciones,
                          PuntuacionJornadaRepository puntuaciones, JornadaRepository jornadas,
-                         JugadorService jugadorService) {
+                         JugadorService jugadorService, MejoraAplicadaRepository mejorasAplicadas) {
         this.equipos = equipos;
         this.plantillas = plantillas;
         this.jugadores = jugadores;
@@ -37,6 +38,7 @@ public class EquipoService {
         this.puntuaciones = puntuaciones;
         this.jornadas = jornadas;
         this.jugadorService = jugadorService;
+        this.mejorasAplicadas = mejorasAplicadas;
     }
 
     // ------------------------- Consultas -------------------------
@@ -110,6 +112,7 @@ public class EquipoService {
         equipo.setDineroDisponible(equipo.getDineroDisponible().add(precio));
         transacciones.save(new Transaccion(equipo, jugador, TipoTransaccion.VENTA, precio, LocalDateTime.now()));
         plantillas.flush();
+        liberarMejorasDeNoTitulares(equipoId);
         return dto(equipo);
     }
 
@@ -151,6 +154,8 @@ public class EquipoService {
                 porJugador.get(jugadorId).colocarEn(slot);
             }
         });
+        plantillas.flush();
+        liberarMejorasDeNoTitulares(equipoId);
         return dto(equipo);
     }
 
@@ -186,6 +191,19 @@ public class EquipoService {
     }
 
     // ------------------------- Auxiliares -------------------------
+
+    /**
+     * Las mejoras solo las llevan los titulares: si un jugador con una mejora asignada pasa al
+     * banquillo o se vende, la mejora vuelve al inventario sin gastarse.
+     */
+    private void liberarMejorasDeNoTitulares(Long equipoId) {
+        Set<Long> titulares = new HashSet<>();
+        plantillas.findByEquipoConJugador(equipoId).stream().filter(p -> p.getSlot().esTitular())
+                .forEach(p -> titulares.add(p.getJugador().getId()));
+        mejorasAplicadas.findByEquipoYEstado(equipoId, EstadoMejora.PENDIENTE).stream()
+                .filter(m -> !titulares.contains(m.getJugador().getId()))
+                .forEach(MejoraAplicada::devolverAlInventario);
+    }
 
     static Slot huecoLibre(Posicion posicion, Set<Slot> ocupados) {
         Slot titular = Slot.titularDe(posicion);

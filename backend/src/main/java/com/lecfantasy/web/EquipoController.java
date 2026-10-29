@@ -55,11 +55,15 @@ public class EquipoController {
         return equipos.puntuaciones(yo, equipoId);
     }
 
+    // ---------- Mejoras: inventario del equipo ----------
+
+    /** Inventario (sin asignar), asignadas a la próxima jornada e historial de usadas. */
     @GetMapping("/mejoras")
     public List<MejoraAplicadaDto> mejoras(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId) {
         return mejoras.delEquipo(yo, equipoId);
     }
 
+    /** Compra en el mercado de mejoras. Con jugadorId, además la asigna a ese titular. */
     @PostMapping("/mejoras")
     @ResponseStatus(HttpStatus.CREATED)
     public MejoraAplicadaDto comprarMejora(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId,
@@ -67,10 +71,26 @@ public class EquipoController {
         return mejoras.comprar(yo, equipoId, req);
     }
 
+    /** Asigna una mejora del inventario a un titular para la próxima jornada (o la cambia de jugador). */
+    @PutMapping("/mejoras/{mejoraAplicadaId}/jugador")
+    public MejoraAplicadaDto asignarMejora(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId,
+                                           @PathVariable Long mejoraAplicadaId,
+                                           @Valid @RequestBody AsignarMejoraRequest req) {
+        return mejoras.asignar(yo, equipoId, mejoraAplicadaId, req.jugadorId());
+    }
+
+    /** Quita la mejora al jugador: vuelve al inventario. */
+    @DeleteMapping("/mejoras/{mejoraAplicadaId}/jugador")
+    public MejoraAplicadaDto quitarMejora(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId,
+                                          @PathVariable Long mejoraAplicadaId) {
+        return mejoras.quitar(yo, equipoId, mejoraAplicadaId);
+    }
+
+    /** Devuelve una mejora sin usar y recupera lo pagado. */
     @DeleteMapping("/mejoras/{mejoraAplicadaId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void cancelarMejora(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId,
+    public void devolverMejora(@AuthenticationPrincipal AuthUser yo, @PathVariable Long equipoId,
                                @PathVariable Long mejoraAplicadaId) {
-        mejoras.cancelar(yo, equipoId, mejoraAplicadaId);
+        mejoras.devolver(yo, equipoId, mejoraAplicadaId);
     }
 }

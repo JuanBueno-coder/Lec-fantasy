@@ -77,22 +77,37 @@ public final class CatalogoDtos {
     public record BloqueoRequest(@NotBlank(message = "Indica el motivo") @Size(max = 255) String motivo) {
     }
 
-    public record MejoraDto(Long id, String nombre, String descripcion, BigDecimal precio, int multiplicadorBono,
-                            CondicionMejora condicion, BigDecimal umbral, boolean activa) {
+    public record MejoraDto(Long id, String nombre, String descripcion, BigDecimal precio, boolean gratis,
+                            CondicionMejora condicion, EstadisticaMejora estadistica, ComparadorMejora comparador,
+                            BigDecimal umbral, EfectoMejora efecto, BigDecimal multiplicador,
+                            EstadisticaMejora efectoEstadistica, BigDecimal puntosPorUnidad, Integer maxPorEquipo,
+                            boolean activa, String regla) {
 
         public static MejoraDto of(Mejora m) {
-            return new MejoraDto(m.getId(), m.getNombre(), m.getDescripcion(), m.getPrecio(),
-                    m.getMultiplicadorBono(), m.getCondicion(), m.getUmbral(), m.isActiva());
+            return new MejoraDto(m.getId(), m.getNombre(), m.getDescripcion(), m.getPrecio(), m.esGratis(),
+                    m.getCondicion(), m.getEstadistica(), m.getComparador(), m.getUmbral(), m.getEfecto(),
+                    m.getMultiplicador(), m.getEfectoEstadistica(), m.getPuntosPorUnidad(), m.getMaxPorEquipo(),
+                    m.isActiva(), ReglaMejora.texto(m));
         }
     }
 
+    /**
+     * Alta o edición de una mejora desde el panel. Según la condición y el efecto se usan
+     * unos campos u otros (el servicio comprueba que estén los necesarios).
+     */
     public record MejoraRequest(
             @NotBlank @Size(max = 60) String nombre,
             @Size(max = 255) String descripcion,
             @NotNull @DecimalMin("0") BigDecimal precio,
-            @Min(2) @Max(10) int multiplicadorBono,
             @NotNull CondicionMejora condicion,
-            BigDecimal umbral,
+            EstadisticaMejora estadistica,
+            ComparadorMejora comparador,
+            @DecimalMin("-9999") @DecimalMax("9999") BigDecimal umbral,
+            @NotNull EfectoMejora efecto,
+            @DecimalMin(value = "0", inclusive = false) @DecimalMax("10") BigDecimal multiplicador,
+            EstadisticaMejora efectoEstadistica,
+            @DecimalMin("-100") @DecimalMax("100") BigDecimal puntosPorUnidad,
+            @Min(1) @Max(5) Integer maxPorEquipo,
             boolean activa) {
     }
 }
