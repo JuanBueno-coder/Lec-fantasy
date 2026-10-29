@@ -294,7 +294,7 @@ async function previsualizar(j) {
 
 const finalizar = (j) => confirm(`¿Finalizar ${j.nombre}? Se puntuará a todos los equipos y no se podrá deshacer.`) &&
   accion(() => api.post(`/admin/jornadas/${j.id}/finalizar`),
-    (r) => `${j.nombre} finalizada: ${r.equiposPuntuados} equipos puntuados, ${r.mejorasCumplidas} mejoras cumplidas, ${r.mejorasFallidas} fallidas, ${r.preciosActualizados} precios actualizados. Mercado abierto.`)
+    (r) => `${j.nombre} finalizada: ${r.equiposPuntuados} equipos puntuados, ${r.mejorasCumplidas} mejoras cumplidas, ${r.mejorasFallidas} fallidas${r.mejorasDevueltas ? `, ${r.mejorasDevueltas} devueltas al inventario` : ''}, ${r.preciosActualizados} precios actualizados. Mercado abierto.`)
 
 onMounted(() => {
   cargar().catch((e) => avisar(e.message, 'error'))

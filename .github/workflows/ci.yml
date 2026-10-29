@@ -43,3 +43,23 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  migraciones:
+    name: MySQL 8.4 · migraciones Flyway
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lecfantasy
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar todas las migraciones como en Railway
+        run: >
+          docker run --rm --network host -v "$PWD/backend/src/main/resources/db/migration:/flyway/sql"
+          flyway/flyway:10 -url="jdbc:mysql://127.0.0.1:3306/lecfantasy?allowPublicKeyRetrieval=true&useSSL=false"
+          -user=root -password=root migrate
