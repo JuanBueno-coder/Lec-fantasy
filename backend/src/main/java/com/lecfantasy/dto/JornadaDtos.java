@@ -62,7 +62,8 @@ public final class JornadaDtos {
                                    BigDecimal puntos) {
     }
 
+    /** mejorasDevueltas: asignadas a jugadores que ya no eran titulares; vuelven al inventario sin gastarse. */
     public record FinalizacionResultado(JornadaDto jornada, int equiposPuntuados, int mejorasCumplidas,
-                                        int mejorasFallidas, int preciosActualizados) {
+                                        int mejorasFallidas, int mejorasDevueltas, int preciosActualizados) {
     }
 }

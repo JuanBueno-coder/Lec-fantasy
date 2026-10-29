@@ -47,17 +47,26 @@ public final class EquipoDtos {
         }
     }
 
-    public record ComprarMejoraRequest(@NotNull Long mejoraId, @NotNull Long jugadorId) {
+    /** Compra una mejora para el inventario. Si se indica jugadorId, además se asigna a ese titular. */
+    public record ComprarMejoraRequest(@NotNull Long mejoraId, Long jugadorId) {
     }
 
+    /** Asigna una mejora del inventario a un titular para la próxima jornada. */
+    public record AsignarMejoraRequest(@NotNull Long jugadorId) {
+    }
+
+    /** Una mejora del equipo: en el inventario (sin jugador ni jornada), asignada o ya usada. */
     public record MejoraAplicadaDto(Long id, CatalogoDtos.MejoraDto mejora, Long jugadorId, String jugador,
-                                    Long jornadaId, String jornada, EstadoMejora estado, BigDecimal precioPagado,
-                                    BigDecimal puntosExtra) {
+                                    Posicion posicion, Long jornadaId, String jornada, EstadoMejora estado,
+                                    BigDecimal precioPagado, BigDecimal puntosExtra, LocalDateTime fechaCompra) {
 
         public static MejoraAplicadaDto of(MejoraAplicada m) {
-            return new MejoraAplicadaDto(m.getId(), CatalogoDtos.MejoraDto.of(m.getMejora()), m.getJugador().getId(),
-                    m.getJugador().getNickname(), m.getJornada().getId(), m.getJornada().getNombre(), m.getEstado(),
-                    m.getPrecioPagado(), m.getPuntosExtra());
+            JugadorReal j = m.getJugador();
+            Jornada jo = m.getJornada();
+            return new MejoraAplicadaDto(m.getId(), CatalogoDtos.MejoraDto.of(m.getMejora()),
+                    j == null ? null : j.getId(), j == null ? null : j.getNickname(), j == null ? null : j.getPosicion(),
+                    jo == null ? null : jo.getId(), jo == null ? null : jo.getNombre(), m.getEstado(),
+                    m.getPrecioPagado(), m.getPuntosExtra(), m.getFechaCompra());
         }
     }
 }

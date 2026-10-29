@@ -35,8 +35,10 @@
         <div class="tarjeta">
           <h2>Mejoras</h2>
           <p class="muted">
-            Compra una mejora para un jugador antes de la jornada (por ejemplo, «Triple Kill»). Si la consigue y es
-            titular, sus puntos se multiplican. Si no, pierdes lo que pagaste.
+            Compra mejoras en el mercado de mejoras y guárdalas en tu inventario. Antes de cada jornada asigna una a
+            cada titular que quieras (como mucho una por jugador). Valen para todas sus partidas de esa jornada y se
+            evalúan partida a partida: «Inmortal» multiplica ×1,5 los puntos de cada partida en la que muera menos de
+            3 veces, y el «Capitán», gratis, da ×1,25 siempre. Cada mejora tiene un solo uso.
           </p>
         </div>
       </div>

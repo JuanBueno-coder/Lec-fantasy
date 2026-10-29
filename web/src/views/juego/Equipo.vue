@@ -59,27 +59,40 @@
 
         <aside class="pila">
           <div class="tarjeta">
-            <h2>Mejoras</h2>
+            <div class="tarjeta-cabeza">
+              <h2>Mejoras</h2>
+              <button v-if="propio" class="btn btn-borde btn-peque" @click="pestana = 'mejoras'">Mercado de mejoras</button>
+            </div>
             <p class="tenue">
-              <template v-if="proxima">Multiplican los puntos de un titular en <b>{{ proxima.nombre }}</b> si cumple el reto.</template>
+              <template v-if="proxima">Una por titular para <b>{{ proxima.nombre }}</b>. Valen para todas sus partidas y se gastan al cerrar la jornada.</template>
               <template v-else>No hay ninguna jornada programada a la que aplicar mejoras.</template>
             </p>
-            <div v-if="pendientes.length" class="pila pendientes">
-              <div v-for="m in pendientes" :key="m.id" class="pendiente">
-                <span class="chip chip-solido">×{{ m.mejora.multiplicadorBono }}</span>
-                <span class="texto-pend"><b>{{ m.mejora.nombre }}</b><span class="tenue">{{ m.jugador }}</span></span>
-                <button v-if="propio && editable" class="x" title="Cancelar y recuperar el dinero" @click="cancelarMejora(m)">
-                  <Icono nombre="cerrar" :tam="14" />
-                </button>
+            <div class="pila roles-mejora">
+              <div v-for="s in TITULARES" :key="s" class="rol-mejora">
+                <span class="rol">{{ s }}</span>
+                <span class="texto-pend">
+                  <b :class="{ tenue: !porSlot[s] }">{{ porSlot[s]?.jugador.nickname || 'Hueco libre' }}</b>
+                  <span v-if="asignadaA(porSlot[s])" class="tenue">{{ asignadaA(porSlot[s]).mejora.nombre }}</span>
+                </span>
+                <template v-if="asignadaA(porSlot[s])">
+                  <span class="chip chip-solido">{{ etiquetaEfecto(asignadaA(porSlot[s]).mejora) }}</span>
+                  <button v-if="propio && editable" class="x" title="Quitar (vuelve al inventario)"
+                          @click="quitar(asignadaA(porSlot[s]))"><Icono nombre="cerrar" :tam="14" /></button>
+                </template>
+                <select v-else-if="propio && editable && proxima && porSlot[s] && inventarioPorTipo.length"
+                        class="input input-mini" :aria-label="`Asignar mejora a ${porSlot[s].jugador.nickname}`"
+                        @change="asignarDesdeSelect($event, porSlot[s].jugador.id)">
+                  <option value="">Asignar…</option>
+                  <option v-for="t in inventarioPorTipo" :key="t.mejora.id" :value="t.items[0].id">
+                    {{ t.mejora.nombre }} {{ etiquetaEfecto(t.mejora) }}{{ t.items.length > 1 ? ` (${t.items.length})` : '' }}
+                  </option>
+                </select>
+                <span v-else class="tenue">—</span>
               </div>
             </div>
-            <span class="micro">Disponibles</span>
-            <div class="fila chips-mejora">
-              <button v-for="m in catalogo" :key="m.id" class="chip-mejora" :disabled="!puedeMejorar"
-                      :title="m.descripcion" @click="abrirMejora(m.id)">
-                {{ m.nombre }} ×{{ m.multiplicadorBono }} <span>{{ millones(m.precio) }}</span>
-              </button>
-            </div>
+            <p v-if="propio" class="tenue pista">
+              Inventario: <b>{{ inventario.length }}</b> {{ inventario.length === 1 ? 'mejora' : 'mejoras' }} sin asignar.
+            </p>
           </div>
 
           <div class="tarjeta">
@@ -116,33 +129,86 @@
         </aside>
       </div>
 
-      <!-- Mejoras -->
-      <section v-if="pestana === 'mejoras'" class="tarjeta">
-        <div class="tarjeta-cabeza">
-          <h2>Mejoras compradas</h2>
-          <button v-if="propio" class="btn btn-peque" :disabled="!puedeMejorar" @click="abrirMejora()">Comprar mejora</button>
-        </div>
-        <div class="tabla-scroll">
-          <table class="tabla">
-            <thead><tr><th>Mejora</th><th>Jugador</th><th>Jornada</th><th>Estado</th><th class="num">Pagado</th><th class="num">Puntos extra</th><th></th></tr></thead>
-            <tbody>
-              <tr v-for="m in mejoras" :key="m.id">
-                <td><b>{{ m.mejora.nombre }}</b> <span class="tenue">×{{ m.mejora.multiplicadorBono }}</span></td>
-                <td>{{ m.jugador }}</td>
-                <td class="muted">{{ m.jornada }}</td>
-                <td><span class="chip" :class="claseEstadoMejora[m.estado]">{{ textoEstadoMejora[m.estado] }}</span></td>
-                <td class="num">{{ millones(m.precioPagado) }}</td>
-                <td class="num">{{ m.estado === 'CUMPLIDA' ? '+' + puntos(m.puntosExtra) : '—' }}</td>
-                <td class="derecha">
-                  <button v-if="propio && m.estado === 'PENDIENTE' && editable" class="btn btn-fantasma btn-peque"
-                          @click="cancelarMejora(m)">Cancelar</button>
-                </td>
-              </tr>
-              <tr v-if="!mejoras.length"><td colspan="7" class="vacio">Sin mejoras todavía.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <!-- Mejoras: inventario, mercado e historial -->
+      <div v-if="pestana === 'mejoras'" class="pila">
+        <section v-if="propio" class="tarjeta">
+          <div class="tarjeta-cabeza">
+            <h2>Inventario</h2>
+            <span class="tenue">Saldo <b class="texto-acento">{{ millones(equipo.dineroDisponible) }}</b></span>
+          </div>
+          <p class="tenue">
+            Cada mejora tiene un solo uso. Asígnala a un titular para <b>{{ proxima ? proxima.nombre : 'la próxima jornada' }}</b>:
+            cada titular puede llevar una (o ninguna). Si pasa al banquillo, la mejora vuelve aquí.
+          </p>
+          <div v-if="inventarioPorTipo.length" class="grid grid-2">
+            <div v-for="t in inventarioPorTipo" :key="t.mejora.id" class="item-inv">
+              <div class="fila-entre">
+                <b>{{ t.mejora.nombre }} <span class="chip chip-acento">{{ etiquetaEfecto(t.mejora) }}</span></b>
+                <span v-if="t.items.length > 1" class="chip">×{{ t.items.length }}</span>
+              </div>
+              <span class="tenue">{{ t.mejora.regla }}</span>
+              <div class="fila acciones-inv">
+                <select v-if="editable && proxima && titularesSinMejora.length" class="input input-mini"
+                        :aria-label="`Asignar ${t.mejora.nombre}`" @change="asignarDesdeSelect($event, null, t.items[0].id)">
+                  <option value="">Asignar a…</option>
+                  <option v-for="p in titularesSinMejora" :key="p.jugador.id" :value="p.jugador.id">
+                    {{ p.slot }} · {{ p.jugador.nickname }}
+                  </option>
+                </select>
+                <span v-else-if="editable && proxima" class="tenue">Todos tus titulares tienen mejora.</span>
+                <button v-if="editable" class="btn btn-fantasma btn-peque" @click="devolver(t.items[0])">
+                  {{ Number(t.items[0].precioPagado) ? `Devolver · +${millones(t.items[0].precioPagado)}` : 'Descartar' }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="vacio">Tu inventario está vacío. Compra mejoras en el mercado de abajo.</div>
+        </section>
+
+        <section v-if="propio" class="tarjeta">
+          <h2>Mercado de mejoras</h2>
+          <div class="grid grid-3 tienda">
+            <div v-for="m in catalogo" :key="m.id" class="producto" :class="{ gratis: m.gratis }">
+              <div class="fila-entre">
+                <b>{{ m.nombre }}</b>
+                <span class="chip chip-solido">{{ etiquetaEfecto(m) }}</span>
+              </div>
+              <p class="regla">{{ m.regla }}</p>
+              <p v-if="m.descripcion" class="tenue desc">{{ m.descripcion }}</p>
+              <div class="fila etiquetas">
+                <span v-if="m.maxPorEquipo" class="chip">{{ m.maxPorEquipo === 1 ? '1 por equipo' : `Máx. ${m.maxPorEquipo} por equipo` }}</span>
+                <span v-if="sinUsarDe(m.id)" class="chip chip-acento">Tienes {{ sinUsarDe(m.id) }}</span>
+              </div>
+              <div class="fila-entre pie-producto">
+                <span class="precio">{{ m.gratis ? 'Gratis' : millones(m.precio) }}</span>
+                <button class="btn btn-peque" :disabled="!!motivoNoCompra(m) || enviando" :title="motivoNoCompra(m)"
+                        @click="comprar(m)">{{ m.gratis ? 'Coger' : 'Comprar' }}</button>
+              </div>
+            </div>
+          </div>
+          <p v-if="!editable" class="tenue pista">El mercado de mejoras se reabre al terminar la jornada en curso.</p>
+        </section>
+
+        <section class="tarjeta">
+          <h2>{{ propio ? 'Asignadas e historial' : 'Mejoras' }}</h2>
+          <div class="tabla-scroll">
+            <table class="tabla">
+              <thead><tr><th>Mejora</th><th>Jugador</th><th>Jornada</th><th>Estado</th><th class="num">Pagado</th><th class="num">Puntos extra</th></tr></thead>
+              <tbody>
+                <tr v-for="m in asignadasEHistorial" :key="m.id">
+                  <td><b>{{ m.mejora.nombre }}</b> <span class="tenue">{{ etiquetaEfecto(m.mejora) }}</span></td>
+                  <td>{{ m.jugador }} <span class="tenue">{{ m.posicion }}</span></td>
+                  <td class="muted">{{ m.jornada }}</td>
+                  <td><span class="chip" :class="ESTADO_MEJORA[m.estado].clase">{{ ESTADO_MEJORA[m.estado].texto }}</span></td>
+                  <td class="num">{{ Number(m.precioPagado) ? millones(m.precioPagado) : 'Gratis' }}</td>
+                  <td class="num">{{ m.estado === 'CUMPLIDA' ? '+' + puntos(m.puntosExtra) : '—' }}</td>
+                </tr>
+                <tr v-if="!asignadasEHistorial.length"><td colspan="6" class="vacio">Sin mejoras asignadas ni usadas todavía.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
 
       <!-- Puntos por jornada -->
       <section v-if="pestana === 'puntos'" class="con-lateral">
@@ -192,56 +258,28 @@
       </section>
     </template>
 
-    <Modal :abierto="modalMejora" titulo="Comprar mejora" ancho="620px" @cerrar="modalMejora = false">
-      <form class="pila" @submit.prevent="comprarMejora">
-        <div class="pila opciones">
-          <label v-for="m in catalogo" :key="m.id" class="opcion" :class="{ elegida: nuevaMejora.mejoraId === m.id }">
-            <input v-model="nuevaMejora.mejoraId" type="radio" :value="m.id" />
-            <div>
-              <div class="fila-entre"><b>{{ m.nombre }} ×{{ m.multiplicadorBono }}</b><span class="texto-acento negrita">{{ millones(m.precio) }}</span></div>
-              <span class="tenue">{{ m.descripcion }}<template v-if="m.umbral"> (umbral {{ m.umbral }})</template></span>
-            </div>
-          </label>
-        </div>
-        <div class="campo">
-          <label for="jm">Jugador</label>
-          <select id="jm" v-model="nuevaMejora.jugadorId" class="input" required>
-            <option :value="null" disabled>Elige un jugador de tu plantilla</option>
-            <option v-for="p in equipo?.plantilla || []" :key="p.jugador.id" :value="p.jugador.id">
-              {{ p.jugador.nickname }} ({{ p.jugador.posicion }}){{ p.estado === 'BANQUILLO' ? ' · suplente' : '' }}
-            </option>
-          </select>
-          <span class="tenue">Solo cuenta si el jugador es titular al cerrarse la jornada.</span>
-        </div>
-        <Alerta :mensaje="errorModal" />
-        <button class="btn btn-bloque" :disabled="enviando || !nuevaMejora.mejoraId || !nuevaMejora.jugadorId">Comprar</button>
-      </form>
-    </Modal>
-
     <ModalReporte v-if="equipo" :abierto="reportando" :usuario-id="equipo.usuarioId" :usuario="equipo.usuario"
                   @cerrar="reportando = false" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Alerta from '../../components/Alerta.vue'
 import FichaMapa from '../../components/FichaMapa.vue'
 import GraficoBarras from '../../components/GraficoBarras.vue'
 import Icono from '../../components/Icono.vue'
-import Modal from '../../components/Modal.vue'
 import ModalReporte from '../../components/ModalReporte.vue'
 import { api } from '../../api/cliente'
 import { useAuth } from '../../stores/auth'
 import { useJuego } from '../../stores/juego'
 import { fechaHora, iniciales, millones, ordinal, puntos } from '../../utils/formato'
 import { siglasEquipo } from '../../utils/equipos'
+import { ESTADO_MEJORA, etiquetaEfecto } from '../../utils/mejoras'
 
 const TITULARES = ['TOP', 'JNG', 'MID', 'ADC', 'SUP']
 const BANQUILLO = ['BANQUILLO_1', 'BANQUILLO_2']
-const textoEstadoMejora = { PENDIENTE: 'Pendiente', CUMPLIDA: 'Cumplida', FALLIDA: 'Fallida' }
-const claseEstadoMejora = { PENDIENTE: 'chip-amarillo', CUMPLIDA: 'chip-verde', FALLIDA: 'chip-rojo' }
 
 const auth = useAuth()
 const juego = useJuego()
@@ -258,22 +296,30 @@ const aviso = ref('')
 const avisoTipo = ref('ok')
 const pestana = ref('alineacion')
 const seleccion = ref(null)
-const modalMejora = ref(false)
-const errorModal = ref('')
 const enviando = ref(false)
 const reportando = ref(false)
-const nuevaMejora = reactive({ mejoraId: null, jugadorId: null })
 
 const propio = computed(() => equipo.value?.usuarioId === auth.usuario?.id)
 const editable = computed(() => equipo.value?.mercadoAbierto)
 const proxima = computed(() => jornadas.value.find((j) => j.estado === 'PROGRAMADA'))
-const puedeMejorar = computed(() => propio.value && !!proxima.value && editable.value && !!equipo.value?.plantilla.length)
 const porSlot = computed(() => {
   const m = {}
   equipo.value?.plantilla.forEach((p) => (m[p.slot] = p))
   return m
 })
 const pendientes = computed(() => mejoras.value.filter((m) => m.estado === 'PENDIENTE'))
+const inventario = computed(() => mejoras.value.filter((m) => m.estado === 'INVENTARIO'))
+const asignadasEHistorial = computed(() => mejoras.value.filter((m) => m.estado !== 'INVENTARIO'))
+/** Inventario agrupado por tipo de mejora: { mejora, items } */
+const inventarioPorTipo = computed(() => {
+  const grupos = new Map()
+  inventario.value.forEach((i) => {
+    if (!grupos.has(i.mejora.id)) grupos.set(i.mejora.id, { mejora: i.mejora, items: [] })
+    grupos.get(i.mejora.id).items.push(i)
+  })
+  return [...grupos.values()]
+})
+const titularesSinMejora = computed(() => TITULARES.map((s) => porSlot.value[s]).filter((p) => p && !asignadaA(p)))
 const ultima = computed(() => puntuaciones.value[puntuaciones.value.length - 1])
 const valorTitulares = computed(() => TITULARES.reduce((s, k) => s + Number(porSlot.value[k]?.jugador.valorMercado || 0), 0))
 const barrasPuntos = computed(() => puntuaciones.value.map((p, i) => ({
@@ -287,10 +333,26 @@ const pestanasVisibles = computed(() => [
   ...(propio.value ? [{ id: 'movimientos', nombre: 'Movimientos' }] : [])
 ])
 
+function asignadaA(item) {
+  if (!item) return null
+  return pendientes.value.find((x) => x.jugadorId === item.jugador.id) || null
+}
+
 function mejoraDe(item) {
-  if (!item) return ''
-  const m = pendientes.value.find((x) => x.jugadorId === item.jugador.id)
-  return m ? `${m.mejora.nombre} ×${m.mejora.multiplicadorBono}` : ''
+  const m = asignadaA(item)
+  return m ? `${m.mejora.nombre} ${etiquetaEfecto(m.mejora)}` : ''
+}
+
+/** Mejoras de ese tipo sin usar (inventario + asignadas), para el límite por equipo. */
+function sinUsarDe(mejoraId) {
+  return mejoras.value.filter((m) => m.mejora.id === mejoraId && (m.estado === 'INVENTARIO' || m.estado === 'PENDIENTE')).length
+}
+
+function motivoNoCompra(m) {
+  if (!editable.value) return 'Mercado cerrado: hay una jornada en curso'
+  if (m.maxPorEquipo && sinUsarDe(m.id) >= m.maxPorEquipo) return 'Ya tienes el máximo de esta mejora sin usar'
+  if (Number(equipo.value.dineroDisponible) < Number(m.precio)) return 'No tienes saldo suficiente'
+  return ''
 }
 
 function rutaMercado(slot) {
@@ -384,37 +446,45 @@ async function vender(item) {
   }
 }
 
-function abrirMejora(mejoraId) {
-  errorModal.value = ''
-  nuevaMejora.mejoraId = mejoraId ?? catalogo.value[0]?.id ?? null
-  nuevaMejora.jugadorId = null
-  modalMejora.value = true
-}
-
-async function comprarMejora() {
-  errorModal.value = ''
+async function accionMejora(fn, ok) {
   enviando.value = true
   try {
-    await api.post(`/equipos/${equipo.value.id}/mejoras`, { ...nuevaMejora })
-    modalMejora.value = false
+    await fn()
     await cargar()
-    mostrar('Mejora comprada.')
+    mostrar(ok)
   } catch (e) {
-    errorModal.value = e.message
+    mostrar(e.message, 'error')
   } finally {
     enviando.value = false
   }
 }
 
-async function cancelarMejora(m) {
-  if (!confirm(`¿Cancelar ${m.mejora.nombre} para ${m.jugador}? Se te devolverá el dinero.`)) return
-  try {
-    await api.del(`/equipos/${equipo.value.id}/mejoras/${m.id}`)
-    await cargar()
-    mostrar('Mejora cancelada y dinero devuelto.')
-  } catch (e) {
-    mostrar(e.message, 'error')
-  }
+function comprar(m) {
+  return accionMejora(() => api.post(`/equipos/${equipo.value.id}/mejoras`, { mejoraId: m.id }),
+    `${m.nombre} ${m.gratis ? 'añadida' : 'comprada'}: ya está en tu inventario.`)
+}
+
+/** Desde el select de un rol (jugadorId) o desde el inventario (itemId fijo, jugador elegido). */
+function asignarDesdeSelect(evento, jugadorId, itemId) {
+  const valor = evento.target.value
+  evento.target.value = ''
+  if (!valor) return
+  const item = itemId ?? Number(valor)
+  const jugador = jugadorId ?? Number(valor)
+  return accionMejora(() => api.put(`/equipos/${equipo.value.id}/mejoras/${item}/jugador`, { jugadorId: jugador }),
+    'Mejora asignada.')
+}
+
+function quitar(m) {
+  return accionMejora(() => api.del(`/equipos/${equipo.value.id}/mejoras/${m.id}/jugador`),
+    `${m.mejora.nombre} ha vuelto a tu inventario.`)
+}
+
+function devolver(m) {
+  const pagado = Number(m.precioPagado)
+  if (!confirm(pagado ? `¿Devolver ${m.mejora.nombre}? Recuperas ${millones(pagado)}.` : `¿Descartar ${m.mejora.nombre}?`)) return
+  return accionMejora(() => api.del(`/equipos/${equipo.value.id}/mejoras/${m.id}`),
+    pagado ? `${m.mejora.nombre} devuelta: +${millones(pagado)}.` : `${m.mejora.nombre} descartada.`)
 }
 
 onMounted(cargar)
@@ -429,6 +499,7 @@ watch(() => route.params.id, (id) => {
 
 <style scoped>
 .cabeza { margin-bottom: 18px; align-items: flex-end; }
+.cabeza > .fila, .cabeza .pildoras { min-width: 0; max-width: 100%; }
 .mapa-tarjeta { padding: 16px; }
 .mapa-cabeza { margin-bottom: 12px; }
 .barra-seleccion {
@@ -455,19 +526,25 @@ watch(() => route.params.id, (id) => {
 .s-SUP { left: 63%; top: 80%; }
 .s-ADC { left: 85%; top: 70%; }
 
-.pendientes { gap: 8px; margin-bottom: 14px; }
-.pendiente { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radio-peque); background: var(--tarjeta-2); }
 .texto-pend { flex: 1; display: flex; flex-direction: column; font-size: 0.84rem; line-height: 1.3; }
 .x { background: none; border: 0; color: var(--texto-3); cursor: pointer; padding: 4px; }
 .x:hover { color: var(--rojo); }
-.chips-mejora { gap: 6px; margin-top: 8px; }
-.chip-mejora {
-  background: var(--tarjeta-2); border: 1px solid var(--borde-2); color: var(--texto); border-radius: 6px; padding: 6px 9px;
-  font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer;
-}
-.chip-mejora span { color: var(--texto-3); font-weight: 600; margin-left: 4px; }
-.chip-mejora:hover:not(:disabled) { border-color: var(--acento-borde); color: var(--acento-tinta); }
-.chip-mejora:disabled { opacity: 0.5; cursor: not-allowed; }
+.roles-mejora { gap: 6px; }
+.rol-mejora { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radio-peque); background: var(--tarjeta-2); min-height: 44px; }
+.rol { width: 30px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; color: var(--texto-3); }
+.input-mini { width: auto; max-width: 150px; padding: 5px 8px; font-size: 0.74rem; }
+.item-inv { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radio-peque); background: var(--tarjeta-2); border: 1px solid var(--borde); }
+.acciones-inv { gap: 8px; margin-top: 4px; }
+.tienda { align-items: stretch; }
+.producto { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 10px; border: 1px solid var(--borde-2); background: var(--tarjeta-2); }
+.producto.gratis { border-color: var(--acento-borde); }
+.regla { margin: 2px 0 0; font-size: 0.84rem; line-height: 1.4; }
+.desc { margin: 0; font-size: 0.78rem; }
+.etiquetas { gap: 6px; }
+.pie-producto { margin-top: auto; padding-top: 8px; }
+.precio { font-weight: 800; color: var(--acento-tinta); }
+@media (max-width: 960px) { .tienda { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .tienda, .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 .banquillo { gap: 8px; }
 .suplente {
   display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radio-peque);
@@ -482,11 +559,6 @@ watch(() => route.params.id, (id) => {
 .texto-sup .tenue { font-size: 0.74rem; }
 .pista { margin: 10px 0 0; font-size: 0.76rem; }
 .resumen { display: flex; flex-direction: column; gap: 10px; }
-.opciones { gap: 8px; }
-.opcion { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--borde-2); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
-.opcion.elegida { border-color: var(--acento); background: var(--acento-suave); }
-.opcion input { margin-top: 5px; accent-color: var(--acento); }
-.opcion > div { flex: 1; }
 @media (max-width: 760px) {
   .mapa-tarjeta { padding: 10px; }
   .mapa { aspect-ratio: 1 / 1.22; }

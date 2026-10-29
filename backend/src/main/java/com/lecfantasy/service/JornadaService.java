@@ -118,17 +118,15 @@ public class JornadaService {
         return JornadaDto.of(j);
     }
 
-    /** Solo jornadas programadas. Devuelve el dinero de las mejoras compradas para ella. */
+    /** Solo jornadas programadas. Las mejoras asignadas a ella vuelven al inventario de cada equipo. */
     @Transactional
     public void eliminar(AuthUser admin, Long id) {
         Jornada j = obtener(id);
         if (j.getEstado() != EstadoJornada.PROGRAMADA) {
             throw ApiException.conflicto("Solo se pueden eliminar jornadas programadas");
         }
-        for (MejoraAplicada m : mejorasAplicadas.findByJornadaYEstado(id, EstadoMejora.PENDIENTE)) {
-            EquipoFantasy e = m.getEquipo();
-            e.setDineroDisponible(e.getDineroDisponible().add(m.getPrecioPagado()));
-        }
+        mejorasAplicadas.findByJornadaYEstado(id, EstadoMejora.PENDIENTE).forEach(MejoraAplicada::devolverAlInventario);
+        mejorasAplicadas.flush();
         jornadas.delete(j);
         actividad.registrar(admin, TipoActividad.JORNADA, admin.nombre() + " eliminó la jornada «" + j.getNombre() + "»");
     }
@@ -228,6 +226,12 @@ public class JornadaService {
 
         int cumplidas = 0;
         int fallidas = 0;
+        int devueltas = 0;
+        // Inventor: veces que se había elegido cada campeón antes de cada partida (con caché)
+        Map<String, Long> vecesCampeon = new HashMap<>();
+        java.util.function.ToLongFunction<EstadisticaJugadorPartida> vecesAntes = e -> vecesCampeon.computeIfAbsent(
+                e.getCampeon().toLowerCase(java.util.Locale.ROOT) + "|" + e.getPartida().getFechaHora(),
+                k -> estadisticas.vecesCampeonAntes(e.getCampeon(), e.getPartida().getFechaHora()));
         List<EquipoFantasy> todos = equipos.findAll();
         for (EquipoFantasy equipo : todos) {
             List<PlantillaJugador> plantilla = plantillaPorEquipo.getOrDefault(equipo.getId(), List.of());
@@ -239,15 +243,17 @@ public class JornadaService {
             BigDecimal extra = BigDecimal.ZERO;
             for (MejoraAplicada m : mejorasPorEquipo.getOrDefault(equipo.getId(), List.of())) {
                 Long jugadorId = m.getJugador().getId();
-                boolean cumple = titulares.contains(jugadorId)
-                        && EvaluadorMejoras.cumple(m.getMejora(), statsPorJugador.getOrDefault(jugadorId, List.of()));
-                if (cumple) {
-                    BigDecimal bonus = puntosPorJugador.getOrDefault(jugadorId, BigDecimal.ZERO)
-                            .multiply(BigDecimal.valueOf(m.getMejora().getMultiplicadorBono() - 1L))
-                            .setScale(2, RoundingMode.HALF_UP);
+                if (!titulares.contains(jugadorId)) {
+                    m.devolverAlInventario(); // ya no es titular: la mejora no se ha llegado a usar
+                    devueltas++;
+                    continue;
+                }
+                EvaluadorMejoras.Resultado r = EvaluadorMejoras.evaluar(m.getMejora(),
+                        statsPorJugador.getOrDefault(jugadorId, List.of()), vecesAntes);
+                if (r.cumplida()) {
                     m.setEstado(EstadoMejora.CUMPLIDA);
-                    m.setPuntosExtra(bonus);
-                    extra = extra.add(bonus);
+                    m.setPuntosExtra(r.puntosExtra());
+                    extra = extra.add(r.puntosExtra());
                     cumplidas++;
                 } else {
                     m.setEstado(EstadoMejora.FALLIDA);
@@ -272,7 +278,7 @@ public class JornadaService {
         j.setFechaFinalizacion(LocalDateTime.now());
         actividad.registrar(admin, TipoActividad.JORNADA, quien(admin) + " finalizó la jornada «" + j.getNombre()
                 + "»: " + todos.size() + " equipos puntuados");
-        return new FinalizacionResultado(JornadaDto.of(j), todos.size(), cumplidas, fallidas, precios);
+        return new FinalizacionResultado(JornadaDto.of(j), todos.size(), cumplidas, fallidas, devueltas, precios);
     }
 
     // ------------------------- Auxiliares -------------------------

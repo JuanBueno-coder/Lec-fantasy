@@ -137,16 +137,51 @@ class FlujoCompletoTest {
         alineacion.put("BANQUILLO_1", jug.get("BetaMid"));
         enviar(put("/api/equipos/" + equipoAna + "/alineacion"), ana, Map.of("slots", alineacion), 200);
 
-        // Mejora "Triple Kill" (x2) para AlfaMid, que hace una triple en la primera partida
-        long tripleKill = 0;
+        // ---------- Mercado de mejoras e inventario ----------
+        long tripleKill = 0, capitan = 0, goodDeath = 0;
         for (JsonNode m : enviar(get("/api/mejoras"), null, null, 200)) {
-            if (m.get("condicion").asText().equals("TRIPLE_KILL")) {
-                tripleKill = m.get("id").asLong();
+            switch (m.get("nombre").asText()) {
+                case "Triple Kill" -> tripleKill = m.get("id").asLong();
+                case "Capitán" -> capitan = m.get("id").asLong();
+                case "Good death" -> goodDeath = m.get("id").asLong();
+                default -> { }
             }
+            assertThat(m.get("regla").asText()).isNotBlank();
         }
-        JsonNode mejora = enviar(post("/api/equipos/" + equipoAna + "/mejoras"), ana,
+        String mejorasAna = "/api/equipos/" + equipoAna + "/mejoras";
+        // Comprar y asignar en un paso: "Triple Kill" (×2) para AlfaMid, que hace una triple en la primera partida
+        JsonNode mejora = enviar(post(mejorasAna), ana,
                 Map.of("mejoraId", tripleKill, "jugadorId", jug.get("AlfaMid")), 201);
         assertThat(mejora.get("jornadaId").asLong()).isEqualTo(j1);
+        assertThat(mejora.get("estado").asText()).isEqualTo("PENDIENTE");
+        // Capitán: gratis y solo uno por equipo
+        JsonNode cap = enviar(post(mejorasAna), ana, Map.of("mejoraId", capitan), 201);
+        assertThat(cap.get("estado").asText()).isEqualTo("INVENTARIO");
+        assertThat(cap.get("precioPagado").decimalValue()).isZero();
+        enviar(post(mejorasAna), ana, Map.of("mejoraId", capitan), 409);
+        // Sin dinero (le quedan 0,5 M tras la Triple Kill)
+        enviar(post(mejorasAna), ana, Map.of("mejoraId", goodDeath), 409);
+        String asignarCap = mejorasAna + "/" + cap.get("id").asLong() + "/jugador";
+        enviar(put(asignarCap), ana, Map.of("jugadorId", jug.get("AlfaMid")), 409); // ya lleva una mejora
+        enviar(put(asignarCap), ana, Map.of("jugadorId", jug.get("BetaMid")), 409); // suplente
+        enviar(put(asignarCap), bea, Map.of("jugadorId", jug.get("AlfaTop")), 403); // equipo ajeno
+        // Si el titular pasa al banquillo, su mejora vuelve sola al inventario
+        assertThat(enviar(put(asignarCap), ana, Map.of("jugadorId", jug.get("AlfaTop")), 200).get("estado").asText())
+                .isEqualTo("PENDIENTE");
+        alineacion.put("MID", jug.get("BetaMid"));
+        alineacion.put("BANQUILLO_1", jug.get("AlfaMid"));
+        enviar(put("/api/equipos/" + equipoAna + "/alineacion"), ana, Map.of("slots", alineacion), 200);
+        JsonNode inventario = enviar(get(mejorasAna), ana, null, 200);
+        assertThat(inventario.get(0).get("estado").asText()).isEqualTo("INVENTARIO"); // la Triple Kill de AlfaMid
+        assertThat(inventario.get(0).get("mejora").get("nombre").asText()).isEqualTo("Triple Kill");
+        alineacion.put("MID", jug.get("AlfaMid"));
+        alineacion.put("BANQUILLO_1", jug.get("BetaMid"));
+        enviar(put("/api/equipos/" + equipoAna + "/alineacion"), ana, Map.of("slots", alineacion), 200);
+        enviar(put(mejorasAna + "/" + inventario.get(0).get("id").asLong() + "/jugador"), ana,
+                Map.of("jugadorId", jug.get("AlfaMid")), 200);
+        // Quitar y volver a poner el Capitán
+        assertThat(enviar(delete(asignarCap), ana, null, 200).get("estado").asText()).isEqualTo("INVENTARIO");
+        enviar(put(asignarCap), ana, Map.of("jugadorId", jug.get("AlfaTop")), 200);
 
         fichar(bea, equipoBea, jug.get("BetaAdc"), 200);
 
@@ -161,12 +196,23 @@ class FlujoCompletoTest {
         for (JsonNode p : previa.get("jugadores")) {
             puntos.put(p.get("nickname").asText(), p.get("puntos").decimalValue());
         }
+        // Puntos de AlfaMid en la partida de su triple kill (la Triple Kill se evalúa partida a partida)
+        BigDecimal midConTriple = BigDecimal.ZERO;
+        for (JsonNode partida : enviar(get("/api/jornadas/" + j1 + "/partidas"), null, null, 200)) {
+            for (JsonNode e : enviar(get("/api/partidas/" + partida.get("id").asLong()), null, null, 200).get("estadisticas")) {
+                if (e.get("jugador").asText().equals("AlfaMid") && e.get("tripleKills").asInt() > 0) {
+                    midConTriple = midConTriple.add(e.get("puntos").decimalValue());
+                }
+            }
+        }
+        assertThat(midConTriple).isPositive();
         BigDecimal esperadoAna = puntos.get("AlfaTop").add(puntos.get("AlfaJng")).add(puntos.get("AlfaMid"))
                 .add(puntos.get("AlfaAdc")).add(puntos.get("AlfaSup"))
-                .add(puntos.get("AlfaMid")); // bonus de la mejora: x2 sobre AlfaMid
+                .add(midConTriple)                                       // Triple Kill: ×2 en esa partida
+                .add(puntos.get("AlfaTop").multiply(new BigDecimal("0.25")).setScale(2, java.math.RoundingMode.HALF_UP)); // Capitán ×1,25
 
         JsonNode fin = enviar(post("/api/admin/jornadas/" + j1 + "/finalizar"), admin, null, 200);
-        assertThat(fin.get("mejorasCumplidas").asInt()).isEqualTo(1);
+        assertThat(fin.get("mejorasCumplidas").asInt()).isEqualTo(2);
         assertThat(fin.get("equiposPuntuados").asInt()).isGreaterThanOrEqualTo(5);
 
         JsonNode equipoFinal = enviar(get("/api/equipos/" + equipoAna), ana, null, 200);
@@ -190,8 +236,12 @@ class FlujoCompletoTest {
         assertThat(historialMid.get(1).get("valor").decimalValue())
                 .isEqualByComparingTo(fichaMid.get("jugador").get("valorMercado").decimalValue());
         assertThat(historialMid.get(1).get("jornadaId").asLong()).isEqualTo(j1);
-        assertThat(enviar(get("/api/equipos/" + equipoAna + "/mejoras"), ana, null, 200).get(0).get("estado").asText())
-                .isEqualTo("CUMPLIDA");
+        JsonNode usadas = enviar(get(mejorasAna), ana, null, 200);
+        assertThat(usadas).hasSize(2);
+        usadas.forEach(m -> assertThat(m.get("estado").asText()).isEqualTo("CUMPLIDA"));
+        // Un solo uso: ya gastado, se puede volver a coger un Capitán gratis para la siguiente jornada
+        enviar(put(asignarCap), ana, Map.of("jugadorId", jug.get("AlfaTop")), 409);
+        enviar(post(mejorasAna), ana, Map.of("mejoraId", capitan), 201);
         enviar(get("/api/equipos/" + equipoAna), admin, null, 200);        // el admin puede verlo
         enviar(get("/api/ligas/" + ligaId), registrarYToken("intruso"), null, 403); // liga privada
 

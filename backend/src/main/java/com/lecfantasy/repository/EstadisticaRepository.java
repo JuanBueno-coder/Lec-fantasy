@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EstadisticaRepository extends JpaRepository<EstadisticaJugadorPartida, Long> {
@@ -27,6 +28,13 @@ public interface EstadisticaRepository extends JpaRepository<EstadisticaJugadorP
             where e.jugador.id = :jugadorId order by p.fechaHora desc
             """)
     List<EstadisticaJugadorPartida> findByJugador(@Param("jugadorId") Long jugadorId);
+
+    /** Veces que se ha elegido un campeón en partidas anteriores a una fecha (mejora Inventor). */
+    @Query("""
+            select count(e) from EstadisticaJugadorPartida e
+            where lower(e.campeon) = lower(:campeon) and e.partida.fechaHora < :antes
+            """)
+    long vecesCampeonAntes(@Param("campeon") String campeon, @Param("antes") LocalDateTime antes);
 
     @Query("select coalesce(sum(e.puntosFantasy), 0) from EstadisticaJugadorPartida e where e.jugador.id = :jugadorId")
     BigDecimal puntosTotalesJugador(@Param("jugadorId") Long jugadorId);
