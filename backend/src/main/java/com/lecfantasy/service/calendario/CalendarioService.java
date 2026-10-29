@@ -88,6 +88,10 @@ public class CalendarioService {
         List<PartidoCalendario> partidos = pandascore.partidos(ahora, ahora.plus(Duration.ofDays(config.diasCalendario())))
                 .stream().filter(p -> !p.cancelado()).toList();
         actualizarEquipos(partidos);
+        int logos = completarLogosDelUltimoAnio(ahora);
+        if (logos > 0) {
+            acciones.add("Logos y siglas copiados de PandaScore a " + logos + " equipo(s).");
+        }
 
         LocalDate hoy = LocalDate.now(zona);
         Map<LocalDate, List<PartidoCalendario>> porSemana = partidos.stream().collect(Collectors.groupingBy(
@@ -115,8 +119,21 @@ public class CalendarioService {
         return acciones;
     }
 
+    /**
+     * Si queda algún equipo sin logo (p. ej. los creados al importar de Leaguepedia en pretemporada,
+     * cuando no hay próximos partidos), busca sus logos en los partidos de la LEC del último año.
+     * Solo hace la consulta si hace falta, para no gastar peticiones del plan gratuito.
+     */
+    int completarLogosDelUltimoAnio(Instant ahora) {
+        boolean faltan = equiposPro.findAll().stream().anyMatch(e -> e.getLogoUrl() == null || e.getSiglas() == null);
+        if (!faltan) {
+            return 0;
+        }
+        return actualizarEquipos(pandascore.partidos(ahora.minus(Duration.ofDays(365)), ahora));
+    }
+
     /** Copia logo y siglas de PandaScore a los equipos que no los tengan (se buscan por nombre o siglas). */
-    void actualizarEquipos(List<PartidoCalendario> partidos) {
+    int actualizarEquipos(List<PartidoCalendario> partidos) {
         Map<String, PartidoCalendario.Equipo> vistos = new HashMap<>();
         partidos.forEach(p -> {
             vistos.putIfAbsent(p.equipoA().nombre(), p.equipoA());
@@ -126,7 +143,7 @@ public class CalendarioService {
         Set<EquipoPro> cambiados = new HashSet<>();
         for (PartidoCalendario.Equipo e : vistos.values()) {
             todos.stream()
-                    .filter(ep -> ep.getNombre().equalsIgnoreCase(e.nombre())
+                    .filter(ep -> normalizar(ep.getNombre()).equals(normalizar(e.nombre()))
                             || (ep.getSiglas() != null && e.siglas() != null && ep.getSiglas().equalsIgnoreCase(e.siglas())))
                     .findFirst()
                     .ifPresent(ep -> {
@@ -141,6 +158,12 @@ public class CalendarioService {
                     });
         }
         equiposPro.saveAll(cambiados);
+        return cambiados.size();
+    }
+
+    /** "GIANTX", "GiantX" y "Giant X" cuentan como el mismo equipo. */
+    static String normalizar(String nombre) {
+        return nombre == null ? "" : nombre.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
     private LocalDate dia(PartidoCalendario p) {
