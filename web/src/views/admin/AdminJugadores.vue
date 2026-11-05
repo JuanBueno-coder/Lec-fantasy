@@ -165,12 +165,14 @@ function seguirFotos(estado) {
     mensaje.value = estado.error
     return
   }
-  const r = estado.resultado
+  const r = estado.resultado || {}
+  const sinFoto = r.sinFoto || []
+  const errores = r.errores || []
   const partes = [`${r.actualizadas} foto(s) nuevas o actualizadas`]
   if (r.sinCambios) partes.push(`${r.sinCambios} sin cambios`)
-  if (r.sinFoto.length) partes.push(`sin foto en Leaguepedia: ${r.sinFoto.join(', ')}`)
-  if (r.errores.length) partes.push(`errores: ${r.errores.join('; ')}`)
-  mensajeTipo.value = r.errores.length ? 'error' : 'ok'
+  if (sinFoto.length) partes.push(`sin foto en Leaguepedia: ${sinFoto.join(', ')}`)
+  if (errores.length) partes.push(`errores: ${errores.join('; ')}`)
+  mensajeTipo.value = errores.length ? 'error' : 'ok'
   mensaje.value = r.revisados ? partes.join(' · ') + '.' : 'Todos los jugadores tienen ya foto.'
   cargar()
 }
