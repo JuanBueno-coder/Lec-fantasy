@@ -7,8 +7,7 @@
     <Alerta :mensaje="error" class="mb" />
     <template v-if="datos">
       <section class="tarjeta heroe">
-        <img v-if="j.fotoUrl" :src="j.fotoUrl" alt="" class="foto" />
-        <span v-else class="avatar anillo foto">{{ iniciales(j.nickname) }}</span>
+        <AvatarJugador :jugador="j" class="anillo foto" />
         <div class="identidad">
           <span class="kicker">{{ NOMBRE_POSICION[j.posicion] || j.posicion }} · {{ j.equipo?.nombre || 'Sin equipo' }}</span>
           <h1 class="nombre">{{ j.nickname }}</h1>
@@ -87,6 +86,7 @@
 </template>
 
 <script setup>
+import AvatarJugador from '../../components/AvatarJugador.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alerta from '../../components/Alerta.vue'
@@ -97,7 +97,7 @@ import PanelFichaje from '../../components/PanelFichaje.vue'
 import { api } from '../../api/cliente'
 import { useJuego } from '../../stores/juego'
 import {
-  decimal, fecha, iniciales, mediaJugador, millones, NOMBRE_POSICION, puntos, variacion
+  decimal, fecha, mediaJugador, millones, NOMBRE_POSICION, puntos, variacion
 } from '../../utils/formato'
 import { barrasPartidas, medias, seriePrecio } from '../../utils/graficos'
 

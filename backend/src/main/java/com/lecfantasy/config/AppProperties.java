@@ -38,7 +38,11 @@ public record AppProperties(
     public record Mail(String from) {
     }
 
-    public record Leaguepedia(String url, String userAgent) {
+    /**
+     * API de Leaguepedia (lol.fandom.com). fotosAutomaticas: si la automatización semanal trae también
+     * las fotos de los jugadores que aún no tienen (el botón del panel funciona siempre).
+     */
+    public record Leaguepedia(String url, String userAgent, boolean fotosAutomaticas) {
     }
 
     /**

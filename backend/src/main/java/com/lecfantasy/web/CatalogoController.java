@@ -6,15 +6,21 @@ import com.lecfantasy.dto.CatalogoDtos.*;
 import com.lecfantasy.dto.JornadaDtos.*;
 import com.lecfantasy.dto.NoticiaDtos.NoticiaDto;
 import com.lecfantasy.security.AuthUser;
+import com.lecfantasy.domain.FotoJugador;
+import com.lecfantasy.service.FotoJugadorService;
 import com.lecfantasy.service.JornadaService;
 import com.lecfantasy.service.JugadorService;
 import com.lecfantasy.service.MejoraService;
 import com.lecfantasy.service.NoticiaService;
 import com.lecfantasy.service.calendario.CalendarioService;
 import com.lecfantasy.service.calendario.PartidoCalendario;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 
 /** Endpoints de solo lectura, accesibles sin iniciar sesión. */
@@ -27,9 +33,11 @@ public class CatalogoController {
     private final MejoraService mejoras;
     private final NoticiaService noticias;
     private final CalendarioService calendario;
+    private final FotoJugadorService fotos;
 
     public CatalogoController(JugadorService jugadores, JornadaService jornadas, MejoraService mejoras,
-                              NoticiaService noticias, CalendarioService calendario) {
+                              NoticiaService noticias, CalendarioService calendario, FotoJugadorService fotos) {
+        this.fotos = fotos;
         this.calendario = calendario;
         this.jugadores = jugadores;
         this.jornadas = jornadas;
@@ -61,6 +69,19 @@ public class CatalogoController {
     @GetMapping("/jugadores/{id}")
     public JugadorDetalleDto jugador(@PathVariable Long id) {
         return jugadores.detalle(id);
+    }
+
+    /**
+     * Foto del jugador traída de Leaguepedia. La URL lleva "?v=" con la versión, así que se puede
+     * guardar en caché para siempre: cuando cambia la foto cambia la URL (campo fotoUrl del jugador).
+     */
+    @GetMapping("/jugadores/{id}/foto")
+    public ResponseEntity<byte[]> foto(@PathVariable Long id) {
+        FotoJugador f = fotos.foto(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(f.getTipoContenido()))
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
+                .body(f.getContenido());
     }
 
     @GetMapping("/jornadas")

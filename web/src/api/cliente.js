@@ -93,3 +93,12 @@ export const api = {
   put: (ruta, cuerpo) => peticion('PUT', ruta, cuerpo),
   del: (ruta) => peticion('DELETE', ruta)
 }
+
+/**
+ * Las imágenes que sirve el backend (p. ej. las fotos de Leaguepedia) llegan como ruta relativa
+ * "/api/...": se les antepone la URL del backend. Las URL completas se dejan como están.
+ */
+export function urlRecurso(url) {
+  if (!url) return null
+  return url.startsWith('/api/') ? `${BASE}${url}` : url
+}

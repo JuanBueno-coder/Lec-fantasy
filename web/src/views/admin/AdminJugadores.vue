@@ -2,9 +2,17 @@
   <div>
     <div class="fila-entre">
       <h1>Jugadores y precios</h1>
-      <button class="btn" @click="abrir(null)">Nuevo jugador</button>
+      <div class="fila">
+        <button class="btn btn-borde" :disabled="trayendo" @click="traerFotos">
+          {{ trayendo ? 'Trayendo fotos…' : 'Traer fotos de Leaguepedia' }}
+        </button>
+        <button class="btn" @click="abrir(null)">Nuevo jugador</button>
+      </div>
     </div>
-    <p class="muted">Los jugadores y equipos se crean solos al importar partidas. Aquí puedes corregir datos y ajustar precios.</p>
+    <p class="muted">Los jugadores y equipos se crean solos al importar partidas. Aquí puedes corregir datos y ajustar precios.
+      Las fotos salen de la ficha de cada jugador en Leaguepedia; la automatización semanal trae las de los jugadores nuevos.</p>
+    <label class="check mb"><input v-model="todasLasFotos" type="checkbox" />
+      Comprobar también las que ya tienen foto (p. ej. al empezar un split; sustituye las URL puestas a mano)</label>
     <Alerta :mensaje="mensaje" :tipo="mensajeTipo" class="mb" />
     <div class="fila mb">
       <input v-model.trim="texto" class="input buscar" placeholder="Buscar…" />
@@ -19,7 +27,10 @@
         <tbody>
           <tr v-for="j in filtrados" :key="j.id">
             <td><Posicion :posicion="j.posicion" /></td>
-            <td class="negrita">{{ j.nickname }} <span v-if="j.bloqueado" class="chip chip-rojo">bloqueado</span></td>
+            <td class="negrita">
+              <span class="jugador"><AvatarJugador :jugador="j" class="anillo" />{{ j.nickname }}</span>
+              <span v-if="j.bloqueado" class="chip chip-rojo">bloqueado</span>
+            </td>
             <td class="muted">{{ j.equipo?.nombre || '—' }}</td>
             <td class="num">{{ j.partidasJugadas }}</td>
             <td class="num">{{ puntos(j.puntosTotales) }}</td>
@@ -53,7 +64,11 @@
             <label for="val">Valor de mercado (M)</label>
             <input id="val" v-model.number="form.valorM" type="number" step="0.01" min="0.1" class="input" required />
           </div>
-          <div class="campo"><label for="foto">URL de la foto</label><input id="foto" v-model.trim="form.fotoUrl" class="input" maxlength="500" /></div>
+          <div class="campo">
+            <label for="foto">URL de la foto</label>
+            <input id="foto" v-model.trim="form.fotoUrl" class="input" maxlength="500" />
+            <span class="tenue">Si la cambias o la borras, se quita la traída de Leaguepedia.</span>
+          </div>
         </div>
         <Alerta :mensaje="errorModal" />
         <button class="btn btn-bloque">Guardar</button>
@@ -65,6 +80,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alerta from '../../components/Alerta.vue'
+import AvatarJugador from '../../components/AvatarJugador.vue'
 import Modal from '../../components/Modal.vue'
 import Posicion from '../../components/Posicion.vue'
 import { api } from '../../api/cliente'
@@ -78,6 +94,8 @@ const modal = ref(false)
 const errorModal = ref('')
 const mensaje = ref('')
 const mensajeTipo = ref('ok')
+const trayendo = ref(false)
+const todasLasFotos = ref(false)
 const form = reactive({ id: null, nickname: '', nombreReal: '', posicion: 'TOP', equipoId: null, valorM: 8, fotoUrl: '' })
 
 const filtrados = computed(() => jugadores.value.filter((j) =>
@@ -113,6 +131,26 @@ async function guardar() {
   }
 }
 
+async function traerFotos() {
+  trayendo.value = true
+  mensaje.value = ''
+  try {
+    const r = await api.post(`/admin/jugadores/fotos/leaguepedia?todas=${todasLasFotos.value}`)
+    const partes = [`${r.actualizadas} foto(s) nuevas o actualizadas`]
+    if (r.sinCambios) partes.push(`${r.sinCambios} sin cambios`)
+    if (r.sinFoto.length) partes.push(`sin foto en Leaguepedia: ${r.sinFoto.join(', ')}`)
+    if (r.errores.length) partes.push(`errores: ${r.errores.join('; ')}`)
+    mensajeTipo.value = r.errores.length ? 'error' : 'ok'
+    mensaje.value = r.revisados ? partes.join(' · ') + '.' : 'Todos los jugadores tienen ya foto.'
+    await cargar()
+  } catch (e) {
+    mensajeTipo.value = 'error'
+    mensaje.value = e.message
+  } finally {
+    trayendo.value = false
+  }
+}
+
 onMounted(() => cargar().catch((e) => { mensajeTipo.value = 'error'; mensaje.value = e.message }))
 </script>
 
@@ -120,4 +158,6 @@ onMounted(() => cargar().catch((e) => { mensajeTipo.value = 'error'; mensaje.val
 .sin-relleno { padding: 0; overflow: hidden; }
 .buscar { max-width: 280px; }
 .selector { width: auto; }
+.jugador { display: inline-flex; align-items: center; gap: 10px; }
+.jugador .avatar { width: 30px; height: 30px; font-size: 0.68rem; }
 </style>

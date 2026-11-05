@@ -102,7 +102,7 @@
                    :class="{ seleccionada: seleccion === s, destino: !!seleccion && seleccion !== s && admiteMovimiento(seleccion, s), vacia: !porSlot[s] }"
                    role="button" tabindex="0" @click="pulsar(s)" @keydown.enter.prevent="pulsar(s)">
                 <template v-if="porSlot[s]">
-                  <span class="avatar anillo">{{ iniciales(porSlot[s].jugador.nickname) }}</span>
+                  <AvatarJugador :jugador="porSlot[s].jugador" class="anillo" />
                   <span class="texto-sup">
                     <b>{{ porSlot[s].jugador.nickname }}</b>
                     <span class="tenue">{{ porSlot[s].jugador.posicion }} · {{ siglasEquipo(porSlot[s].jugador.equipo) }} · {{ millones(porSlot[s].jugador.valorMercado) }}</span>
@@ -264,6 +264,7 @@
 </template>
 
 <script setup>
+import AvatarJugador from '../../components/AvatarJugador.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Alerta from '../../components/Alerta.vue'
@@ -274,7 +275,7 @@ import ModalReporte from '../../components/ModalReporte.vue'
 import { api } from '../../api/cliente'
 import { useAuth } from '../../stores/auth'
 import { useJuego } from '../../stores/juego'
-import { fechaHora, iniciales, millones, ordinal, puntos } from '../../utils/formato'
+import { fechaHora, millones, ordinal, puntos } from '../../utils/formato'
 import { siglasEquipo } from '../../utils/equipos'
 import { ESTADO_MEJORA, etiquetaEfecto } from '../../utils/mejoras'
 

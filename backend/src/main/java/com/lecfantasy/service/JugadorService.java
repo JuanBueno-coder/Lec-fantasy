@@ -26,11 +26,13 @@ public class JugadorService {
     private final TransaccionRepository transacciones;
     private final HistorialValorRepository historialValor;
     private final ActividadService actividad;
+    private final FotoJugadorRepository fotos;
 
     public JugadorService(JugadorRealRepository jugadores, EquipoProRepository equiposPro,
                           EstadisticaRepository estadisticas, PlantillaJugadorRepository plantillas,
                           TransaccionRepository transacciones, HistorialValorRepository historialValor,
-                          ActividadService actividad) {
+                          ActividadService actividad, FotoJugadorRepository fotos) {
+        this.fotos = fotos;
         this.historialValor = historialValor;
         this.jugadores = jugadores;
         this.equiposPro = equiposPro;
@@ -188,7 +190,16 @@ public class JugadorService {
         j.setPosicion(req.posicion());
         j.setEquipoPro(req.equipoId() == null ? null
                 : equiposPro.findById(req.equipoId()).orElseThrow(() -> ApiException.peticionInvalida("Equipo no válido")));
-        j.setFotoUrl(AuthService.vacioANull(req.fotoUrl()));
+        String foto = AuthService.vacioANull(req.fotoUrl());
+        // El formulario devuelve la URL que se le mostró: si no la ha tocado, se deja la foto como está.
+        // Si la cambia o la borra, manda lo que escriba el administrador y se quita la de Leaguepedia.
+        if (!java.util.Objects.equals(foto, JugadorDto.urlFoto(j))) {
+            j.setFotoUrl(foto);
+            if (j.getFotoVersion() != null) {
+                j.setFotoVersion(null);
+                fotos.deleteById(j.getId());
+            }
+        }
     }
 
     private static BigDecimal precio(JugadorRequest req) {
