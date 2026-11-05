@@ -49,7 +49,11 @@ public class JugadorReal {
         return true;
     }
 
+    /** URL externa puesta a mano por el administrador (se usa si no hay foto descargada). */
     private String fotoUrl;
+
+    /** Versión de la foto descargada de Leaguepedia (tabla foto_jugador). Null si no hay. */
+    private Long fotoVersion;
 
     /** Identificador en la fuente externa (Leaguepedia / Oracle's Elixir). */
     private String idExterno;

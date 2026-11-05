@@ -30,8 +30,18 @@ public final class CatalogoDtos {
 
         public static JugadorDto of(JugadorReal j, BigDecimal puntos, long partidas) {
             return new JugadorDto(j.getId(), j.getNickname(), j.getNombreReal(), j.getPosicion(),
-                    EquipoProDto.ofNullable(j.getEquipoPro()), j.getValorMercado(), j.getValorAnterior(), j.getFotoUrl(),
+                    EquipoProDto.ofNullable(j.getEquipoPro()), j.getValorMercado(), j.getValorAnterior(), urlFoto(j),
                     j.isBloqueado(), j.getMotivoBloqueo(), puntos == null ? BigDecimal.ZERO : puntos, partidas);
+        }
+
+        /**
+         * Foto descargada de Leaguepedia, servida por esta API: ruta relativa "/api/jugadores/{id}/foto?v=..."
+         * (la web y la app le anteponen la URL del backend). Si no hay, la URL que puso el administrador.
+         */
+        public static String urlFoto(JugadorReal j) {
+            return j.getFotoVersion() != null
+                    ? "/api/jugadores/" + j.getId() + "/foto?v=" + j.getFotoVersion()
+                    : j.getFotoUrl();
         }
     }
 

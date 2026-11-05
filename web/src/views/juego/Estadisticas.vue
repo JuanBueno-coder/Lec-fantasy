@@ -54,7 +54,7 @@
         <p v-else-if="!detalle" class="tenue">Elige un jugador de la tabla para ver su ficha.</p>
         <template v-else>
           <div class="cabeza-ficha">
-            <span class="avatar anillo xl">{{ iniciales(detalle.jugador.nickname) }}</span>
+            <AvatarJugador :jugador="detalle.jugador" class="anillo xl" />
             <div>
               <h2 class="sin-margen">{{ detalle.jugador.nickname }}</h2>
               <span class="tenue">
@@ -97,13 +97,14 @@
 </template>
 
 <script setup>
+import AvatarJugador from '../../components/AvatarJugador.vue'
 import { computed, onMounted, ref } from 'vue'
 import Alerta from '../../components/Alerta.vue'
 import GraficoBarras from '../../components/GraficoBarras.vue'
 import GraficoLinea from '../../components/GraficoLinea.vue'
 import InsigniaEquipo from '../../components/InsigniaEquipo.vue'
 import { api } from '../../api/cliente'
-import { decimal, iniciales, mediaJugador, millones, POSICIONES, puntos, variacion } from '../../utils/formato'
+import { decimal, mediaJugador, millones, POSICIONES, puntos, variacion } from '../../utils/formato'
 import { siglasEquipo } from '../../utils/equipos'
 import { barrasPartidas, medias, seriePrecio } from '../../utils/graficos'
 

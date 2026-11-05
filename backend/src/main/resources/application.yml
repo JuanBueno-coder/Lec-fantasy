@@ -62,6 +62,8 @@ app:
   leaguepedia:
     url: https://lol.fandom.com/api.php
     user-agent: LECFantasyTFG/1.0 (proyecto de fin de grado)
+    # Fotos de los jugadores (tabla Cargo Players): la automatización trae las que falten
+    fotos-automaticas: ${LEAGUEPEDIA_FOTOS_AUTOMATICAS:true}
   # Jornadas automáticas con Leaguepedia (ver service/AutomatizacionJornadas.java).
   # Cron de Spring: segundo minuto hora día mes día-de-la-semana.
   automatizacion:

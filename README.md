@@ -86,7 +86,8 @@ MySQL. `FlujoCompletoTest` recorre el juego entero: registro, liga privada, fich
 alineación, mejora, importación del CSV, cierre de jornada, baneo, bloqueo de jugador,
 login con Google, reportes, noticias y borrado de usuario.
 
-> Resultado actual: 13 tests, 0 fallos (`AutomatizacionTest` y `CalendarioTest` comprueban el modo automático y PandaScore).
+> `AutomatizacionTest` y `CalendarioTest` comprueban el modo automático y PandaScore; `FotosTest` y
+> `LeaguepediaFotosClientTest`, las fotos de Leaguepedia (con el cliente simulado, sin red).
 
 ---
 
@@ -261,6 +262,28 @@ El panel guarda el calendario 15 minutos en memoria para no gastar peticiones (e
 > Usa una sola fuente por jornada: Leaguepedia y Oracle's Elixir identifican las partidas de
 > forma distinta y se contarían dos veces.
 
+### Fotos de los jugadores (Leaguepedia · Cargo)
+
+Las fotos salen de la ficha de cada jugador en Leaguepedia (`service/importer/LeaguepediaFotosClient.java`):
+
+1. **Cargo**, tabla `Players`: el campo `Image` es el archivo de su foto principal. Se busca por la página del
+   jugador, que viene en su id externo (`LP:Caps`); a los creados a mano o desde Oracle's Elixir se les busca
+   por el nickname, y si no es una página de jugador, por sus alias (`PlayerRedirects`).
+2. **imageinfo** (API de MediaWiki): da la URL de una miniatura de 256 px.
+3. Se **descarga** del CDN de Fandom y se guarda en la tabla `foto_jugador`. La API la sirve en
+   `GET /api/jugadores/{id}/foto?v=...` con caché larga, y el campo `fotoUrl` del jugador ya trae esa ruta.
+
+Guardarlas en la base de datos evita depender de que Fandom deje enlazar sus imágenes desde otras webs y de
+que el navegador de cada usuario se conecte a Fandom. Son unos 20-40 KB por jugador.
+
+- **Administración → Jugadores → Traer fotos de Leaguepedia** trae las que faltan. Con «Comprobar también las
+  que ya tienen foto» mira si ha cambiado alguna (p. ej. al empezar un split) y no vuelve a bajar las iguales.
+- La **automatización semanal** trae las de los jugadores nuevos tras importar
+  (`LEAGUEPEDIA_FOTOS_AUTOMATICAS=false` para desactivarlo).
+- Si el administrador cambia o borra la URL de la foto de un jugador, manda la suya y se quita la de Leaguepedia.
+- **App Android**: `fotoUrl` puede ser una ruta relativa (`/api/...`); hay que anteponerle la URL del backend,
+  como hace la web en `urlRecurso()` (`web/src/api/cliente.js`).
+
 ---
 
 ## 5. Resumen de la API
@@ -272,7 +295,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Usuario 🔒**: `GET|PUT /usuarios/me`, `PUT /usuarios/me/apariencia` (`{ tema: OSCURO|CLARO, colorAcento: "#RRGGBB" }`), `PUT /usuarios/me/password`, `GET /usuarios/{id}`, `POST /reportes`
 
-**Público**: `GET /calendario` (próximos partidos, PandaScore), `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jornadas`,
+**Público**: `GET /calendario` (próximos partidos, PandaScore), `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jugadores/{id}/foto`, `/jornadas`,
 `/jornadas/{id}/partidas`, `/partidas/{id}`, `/mejoras`, `/noticias`, `/noticias/{id}`, `/ligas/publicas`
 
 **Ligas 🔒**: `GET /ligas/mias`, `POST /ligas`, `POST /ligas/unirse` (código), `GET /ligas/{id}`,
@@ -284,7 +307,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Admin 🔒**: `GET /admin/dashboard`, `/admin/actividad`, `/admin/usuarios?q=&estado=&pais=`,
 `GET /admin/usuarios/{id}`, `POST|DELETE /admin/usuarios/{id}/baneo`, `PUT /admin/usuarios/{id}/rol`,
-`DELETE /admin/usuarios/{id}`, `GET|POST /admin/jugadores`, `PUT /admin/jugadores/{id}`,
+`DELETE /admin/usuarios/{id}`, `GET|POST /admin/jugadores`, `PUT /admin/jugadores/{id}`, `POST /admin/jugadores/fotos/leaguepedia?todas=`,
 `POST|DELETE /admin/jugadores/{id}/bloqueo`, `POST|PUT /admin/equipos-pro`, `POST|PUT|DELETE /admin/jornadas`,
 `POST /admin/jornadas/{id}/iniciar`, `/importar/leaguepedia`, `/importar/csv`, `GET /previsualizacion`,
 `POST /finalizar`, `GET /admin/automatizacion`, `POST /admin/automatizacion/ejecutar`, `DELETE /admin/partidas/{id}`, `GET|POST|PUT /admin/mejoras`,
@@ -308,4 +331,6 @@ Ver `docs/modelo-er.png` (los campos nuevos están marcados como NUEVO). Resumen
   cerrar jornada o al editarlo el admin), que alimenta la gráfica de evolución del precio.
   La clasificación (`GET /ligas/{id}/clasificacion`) devuelve además `puntosUltimaJornada`,
   `valorPlantilla` y `racha` (últimas 5 jornadas, por encima o por debajo de la media de la liga).
+- **V5 (fotos)**: `jugador_real.foto_version` y la tabla nueva `foto_jugador` (la imagen de Leaguepedia,
+  su tipo y el archivo de origen).
 - Tipos `int` → `BIGINT` en las claves y `puntos` en decimal (los puntos llevan decimales por el CS y la visión).

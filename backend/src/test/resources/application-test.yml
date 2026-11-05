@@ -22,6 +22,9 @@ app:
     cron-importacion: "-"
     cron-calendario: "-"
     finalizar: true
+  # En los tests nunca se sale a Leaguepedia a por fotos
+  leaguepedia:
+    fotos-automaticas: false
   pandascore:
     url: http://localhost:9
     token: ""

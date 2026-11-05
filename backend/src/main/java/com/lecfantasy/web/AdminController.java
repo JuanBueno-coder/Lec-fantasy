@@ -33,10 +33,12 @@ public class AdminController {
     private final NoticiaService noticias;
     private final ReporteService reportes;
     private final AutomatizacionJornadas automatizacion;
+    private final FotoJugadorService fotos;
 
     public AdminController(AdminUsuarioService usuarios, JugadorService jugadores, JornadaService jornadas,
                            MejoraService mejoras, NoticiaService noticias, ReporteService reportes,
-                           AutomatizacionJornadas automatizacion) {
+                           AutomatizacionJornadas automatizacion, FotoJugadorService fotos) {
+        this.fotos = fotos;
         this.automatizacion = automatizacion;
         this.usuarios = usuarios;
         this.jugadores = jugadores;
@@ -128,6 +130,16 @@ public class AdminController {
     @DeleteMapping("/jugadores/{id}/bloqueo")
     public JugadorDto desbloquear(@AuthenticationPrincipal AuthUser admin, @PathVariable Long id) {
         return jugadores.desbloquear(admin, id);
+    }
+
+    /**
+     * Trae de Leaguepedia (API Cargo) las fotos de los jugadores.
+     * todas=false: solo los que no tienen foto. todas=true: comprueba también si ha cambiado la de los demás.
+     */
+    @PostMapping("/jugadores/fotos/leaguepedia")
+    public FotoJugadorService.ResultadoFotos traerFotos(@AuthenticationPrincipal AuthUser admin,
+                                                        @RequestParam(defaultValue = "false") boolean todas) {
+        return fotos.sincronizar(admin, todas);
     }
 
     @PostMapping("/equipos-pro")

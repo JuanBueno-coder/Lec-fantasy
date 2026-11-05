@@ -43,10 +43,14 @@ public class AutomatizacionJornadas {
     private final ActividadService actividad;
     private final CalendarioService calendario;
     private final AppProperties.Automatizacion config;
+    private final FotoJugadorService fotos;
+    private final boolean fotosAutomaticas;
     private volatile Ejecucion ultima;
 
     public AutomatizacionJornadas(JornadaService jornadas, ActividadService actividad, CalendarioService calendario,
-                                  AppProperties props) {
+                                  AppProperties props, FotoJugadorService fotos) {
+        this.fotos = fotos;
+        this.fotosAutomaticas = props.leaguepedia() != null && props.leaguepedia().fotosAutomaticas();
         this.calendario = calendario;
         this.jornadas = jornadas;
         this.actividad = actividad;
@@ -106,6 +110,7 @@ public class AutomatizacionJornadas {
         List<String> acciones = new ArrayList<>();
         crearDesdeCalendario(acciones);
         importarYCerrarTerminadas(acciones);
+        completarFotos(acciones); // los jugadores nuevos que haya traído la importación
         iniciarPendientes(acciones); // tras cerrar una jornada puede tocar empezar la siguiente
         if (acciones.isEmpty()) {
             acciones.add("Nada que hacer: no hay jornadas nuevas en el calendario, ni terminadas, ni que empiecen hoy.");
@@ -152,6 +157,24 @@ public class AutomatizacionJornadas {
                 log.warn("No se pudo procesar la jornada {} automáticamente", j.id(), e);
                 acciones.add("«" + j.nombre() + "»: error al importar (" + e.getMessage() + "). Se reintentará.");
             }
+        }
+    }
+
+    private void completarFotos(List<String> acciones) {
+        if (!fotosAutomaticas) {
+            return;
+        }
+        try {
+            if (!fotos.faltanFotos()) {
+                return;
+            }
+            var r = fotos.sincronizar(null, false);
+            if (r.actualizadas() > 0) {
+                acciones.add("Fotos de Leaguepedia: " + r.actualizadas() + " jugador(es) nuevos con foto.");
+            }
+        } catch (RuntimeException e) {
+            // Las fotos no son imprescindibles: un fallo aquí no debe parar las jornadas
+            log.warn("No se pudieron traer las fotos de Leaguepedia", e);
         }
     }
 

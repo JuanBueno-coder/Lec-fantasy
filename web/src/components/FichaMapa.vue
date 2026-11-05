@@ -4,7 +4,7 @@
        @click="$emit('pulsar')" @keydown.enter.prevent="$emit('pulsar')" @keydown.space.prevent="$emit('pulsar')">
     <span class="rol">{{ hueco }}</span>
     <template v-if="item">
-      <span class="avatar anillo grande">{{ iniciales(item.jugador.nickname) }}</span>
+      <AvatarJugador :jugador="item.jugador" class="anillo grande" />
       <span class="nombre">{{ item.jugador.nickname }}</span>
       <span class="meta">
         <span class="punto" :style="{ background: colorEquipo(item.jugador.equipo) }" />
@@ -21,8 +21,9 @@
 </template>
 
 <script setup>
+import AvatarJugador from './AvatarJugador.vue'
 import Icono from './Icono.vue'
-import { iniciales, puntos } from '../utils/formato'
+import { puntos } from '../utils/formato'
 import { colorEquipo, siglasEquipo } from '../utils/equipos'
 
 defineProps({

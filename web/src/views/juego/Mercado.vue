@@ -50,7 +50,7 @@
                 <tr v-for="j in filtrados" :key="j.id" class="clicable" @click="router.push(`/jugadores/${j.id}`)">
                   <td>
                     <span class="jugador">
-                      <span class="avatar anillo">{{ iniciales(j.nickname) }}</span>
+                      <AvatarJugador :jugador="j" class="anillo" />
                       <b>{{ j.nickname }}</b>
                     </span>
                   </td>
@@ -121,7 +121,7 @@
       <template v-if="elegido">
         <span class="micro">Fichaje directo</span>
         <div class="cabeza-modal">
-          <span class="avatar anillo xl">{{ iniciales(elegido.nickname) }}</span>
+          <AvatarJugador :jugador="elegido" class="anillo xl" />
           <div>
             <h2 class="sin-margen nombre-modal">{{ elegido.nickname }}</h2>
             <span class="tenue">{{ elegido.posicion }} · {{ elegido.equipo?.nombre || 'Sin equipo' }} · Valor de mercado {{ millones(elegido.valorMercado) }}</span>
@@ -135,6 +135,7 @@
 </template>
 
 <script setup>
+import AvatarJugador from '../../components/AvatarJugador.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alerta from '../../components/Alerta.vue'
@@ -145,7 +146,7 @@ import PanelFichaje from '../../components/PanelFichaje.vue'
 import { api } from '../../api/cliente'
 import { useJuego } from '../../stores/juego'
 import {
-  decimal, hace, iniciales, mediaJugador, millones, motivoNoFichar, puntos, POSICIONES, variacion
+  decimal, hace, mediaJugador, millones, motivoNoFichar, puntos, POSICIONES, variacion
 } from '../../utils/formato'
 
 const SLOTS = ['TOP', 'JNG', 'MID', 'ADC', 'SUP', 'BANQUILLO_1', 'BANQUILLO_2']
