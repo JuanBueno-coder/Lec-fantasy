@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import Alerta from '../../components/Alerta.vue'
 import AvatarJugador from '../../components/AvatarJugador.vue'
 import Modal from '../../components/Modal.vue'
@@ -132,26 +132,56 @@ async function guardar() {
 }
 
 async function traerFotos() {
-  trayendo.value = true
   mensaje.value = ''
   try {
-    const r = await api.post(`/admin/jugadores/fotos/leaguepedia?todas=${todasLasFotos.value}`)
-    const partes = [`${r.actualizadas} foto(s) nuevas o actualizadas`]
-    if (r.sinCambios) partes.push(`${r.sinCambios} sin cambios`)
-    if (r.sinFoto.length) partes.push(`sin foto en Leaguepedia: ${r.sinFoto.join(', ')}`)
-    if (r.errores.length) partes.push(`errores: ${r.errores.join('; ')}`)
-    mensajeTipo.value = r.errores.length ? 'error' : 'ok'
-    mensaje.value = r.revisados ? partes.join(' · ') + '.' : 'Todos los jugadores tienen ya foto.'
-    await cargar()
+    const estado = await api.post(`/admin/jugadores/fotos/leaguepedia?todas=${todasLasFotos.value}`)
+    seguirFotos(estado)
   } catch (e) {
     mensajeTipo.value = 'error'
     mensaje.value = e.message
-  } finally {
-    trayendo.value = false
   }
 }
 
-onMounted(() => cargar().catch((e) => { mensajeTipo.value = 'error'; mensaje.value = e.message }))
+// Leaguepedia limita las consultas, así que las fotos se traen en segundo plano y aquí se va mirando el estado
+let temporizador = null
+function seguirFotos(estado) {
+  clearTimeout(temporizador)
+  trayendo.value = !!estado?.enCurso
+  if (estado?.enCurso) {
+    mensajeTipo.value = 'ok'
+    mensaje.value = 'Trayendo fotos de Leaguepedia… Sin cuenta de bot solo deja una consulta por minuto, así que puede tardar unos minutos. Puedes seguir usando el panel.'
+    temporizador = setTimeout(async () => {
+      try {
+        seguirFotos(await api.get('/admin/jugadores/fotos/leaguepedia'))
+      } catch {
+        seguirFotos(estado)
+      }
+    }, 5000)
+    return
+  }
+  if (!estado?.fin) return
+  if (estado.error) {
+    mensajeTipo.value = 'error'
+    mensaje.value = estado.error
+    return
+  }
+  const r = estado.resultado
+  const partes = [`${r.actualizadas} foto(s) nuevas o actualizadas`]
+  if (r.sinCambios) partes.push(`${r.sinCambios} sin cambios`)
+  if (r.sinFoto.length) partes.push(`sin foto en Leaguepedia: ${r.sinFoto.join(', ')}`)
+  if (r.errores.length) partes.push(`errores: ${r.errores.join('; ')}`)
+  mensajeTipo.value = r.errores.length ? 'error' : 'ok'
+  mensaje.value = r.revisados ? partes.join(' · ') + '.' : 'Todos los jugadores tienen ya foto.'
+  cargar()
+}
+
+onUnmounted(() => clearTimeout(temporizador))
+
+onMounted(() => {
+  cargar().catch((e) => { mensajeTipo.value = 'error'; mensaje.value = e.message })
+  // Si ya se estaban trayendo (p. ej. al volver a esta pantalla), se sigue mostrando el progreso
+  api.get('/admin/jugadores/fotos/leaguepedia').then((e) => { if (e?.enCurso) seguirFotos(e) }).catch(() => {})
+})
 </script>
 
 <style scoped>

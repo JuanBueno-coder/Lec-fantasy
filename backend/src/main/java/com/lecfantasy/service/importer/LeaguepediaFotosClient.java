@@ -1,7 +1,6 @@
 package com.lecfantasy.service.importer;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lecfantasy.common.ApiException;
 import com.lecfantasy.config.AppProperties;
 import org.slf4j.Logger;
@@ -14,9 +13,12 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,16 +28,24 @@ import java.util.stream.Collectors;
  *   <li><b>Cargo</b>, tabla {@code Players}: el campo {@code Image} es el archivo de la foto principal de la
  *       página del jugador (la misma que se ve en su ficha de la wiki). Si el nombre no es una página de
  *       jugador, se busca en {@code PlayerRedirects} (nombres antiguos y alias).</li>
- *   <li><b>imageinfo</b> (API de MediaWiki): convierte el archivo en la URL de una miniatura del ancho pedido.</li>
- *   <li><b>Descarga</b> de la miniatura desde el CDN de Fandom (static.wikia.nocookie.net).</li>
+ *   <li><b>URL de la miniatura</b>: se calcula como lo hace MediaWiki (carpetas por el MD5 del nombre del
+ *       archivo), sin gastar consultas. Si esa URL falla, se pregunta a la API con {@code imageinfo}.</li>
+ *   <li><b>Descarga</b> de la miniatura desde el CDN de Fandom (static.wikia.nocookie.net), que no cuenta para
+ *       el límite de la API.</li>
  * </ol>
- * Las peticiones a la API van de 50 en 50 y con pausa, porque Leaguepedia limita las peticiones por minuto.
+ * Leaguepedia limita mucho las consultas (ver {@link LeaguepediaApi}), así que se piden todos los jugadores en
+ * una sola consulta Cargo siempre que se puede.
  */
 @Component
 public class LeaguepediaFotosClient {
 
     private static final Logger log = LoggerFactory.getLogger(LeaguepediaFotosClient.class);
+    /** Nombres por consulta Cargo (la URL sigue siendo corta y caben en una página de 500 filas). */
+    static final int LOTE_CARGO = 150;
+    /** Títulos por consulta imageinfo: el máximo de MediaWiki para clientes sin permisos de bot. */
     static final int LOTE = 50;
+    /** Carpeta de imágenes de Leaguepedia en el CDN de Fandom. */
+    static final String CDN = "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/";
     private static final int MAX_BYTES = 2_000_000;
 
     /** Imagen descargada. */
@@ -43,15 +53,15 @@ public class LeaguepediaFotosClient {
     }
 
     private final RestClient rest;
-    private final ObjectMapper mapper;
+    private final LeaguepediaApi api;
     private final AppProperties.Leaguepedia props;
 
-    public LeaguepediaFotosClient(ObjectMapper mapper, AppProperties props) {
+    public LeaguepediaFotosClient(LeaguepediaApi api, AppProperties props) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
         factory.setReadTimeout(30_000);
         this.rest = RestClient.builder().requestFactory(factory).build();
-        this.mapper = mapper;
+        this.api = api;
         this.props = props.leaguepedia();
     }
 
@@ -63,13 +73,12 @@ public class LeaguepediaFotosClient {
      */
     public Map<String, String> archivos(Collection<String> paginas) {
         Map<String, String> resultado = new HashMap<>();
-        for (List<String> lote : lotes(paginas)) {
+        for (List<String> lote : lotes(paginas, LOTE_CARGO)) {
             JsonNode filas = cargo(Map.of(
                     "tables", "Players=P",
                     "fields", "P.OverviewPage=Pagina,P.Image=Imagen",
                     "where", "P.OverviewPage IN (" + lista(lote) + ")"));
             resultado.putAll(leerArchivos(filas, "Pagina"));
-            pausa();
         }
 
         // Los que no son una página de jugador: alias o nombre antiguo (PlayerRedirects)
@@ -77,16 +86,18 @@ public class LeaguepediaFotosClient {
                 .filter(p -> !resultado.containsKey(clave(p))).toList();
         if (!restantes.isEmpty()) {
             try {
-                for (List<String> lote : lotes(restantes)) {
+                for (List<String> lote : lotes(restantes, LOTE_CARGO)) {
                     JsonNode filas = cargo(Map.of(
                             "tables", "PlayerRedirects=PR,Players=P",
                             "join_on", "PR.OverviewPage=P.OverviewPage",
                             "fields", "PR.AllName=Nombre,P.Image=Imagen",
                             "where", "PR.AllName IN (" + lista(lote) + ")"));
                     leerArchivos(filas, "Nombre").forEach(resultado::putIfAbsent);
-                    pausa();
                 }
             } catch (ApiException e) {
+                if (e.getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+                    throw e; // límite de Leaguepedia: que lo vea el administrador
+                }
                 // Es solo un respaldo: si falla, nos quedamos con lo encontrado en Players
                 log.warn("Leaguepedia: no se pudieron buscar alias de jugadores ({})", e.getMessage());
             }
@@ -110,43 +121,59 @@ public class LeaguepediaFotosClient {
     }
 
     private JsonNode cargo(Map<String, String> parametros) {
-        UriComponentsBuilder b = UriComponentsBuilder.fromUriString(props.url())
-                .queryParam("action", "cargoquery")
-                .queryParam("format", "json")
-                .queryParam("limit", 500);
-        Map<String, String> valores = new LinkedHashMap<>();
-        parametros.forEach((k, v) -> {
-            b.queryParam(k, "{" + k + "}");
-            valores.put(k, v);
-        });
-        JsonNode raiz = pedirJson(b.encode().buildAndExpand(valores).toUri());
-        return raiz.path("cargoquery");
+        Map<String, String> todos = new LinkedHashMap<>(parametros);
+        todos.put("action", "cargoquery");
+        todos.put("limit", "500");
+        return api.consultar(todos).path("cargoquery");
     }
 
-    // ------------------------- 2. imageinfo: URL de la miniatura -------------------------
+    // ------------------------- 2. URL de la miniatura -------------------------
 
     /**
+     * URL de la miniatura calculada sin consultar la API, como la guarda MediaWiki:
+     * {@code images/<md5[0]>/<md5[0..1]>/<Nombre_del_archivo>} (espacios como "_" y primera letra en mayúscula)
+     * más el sufijo de Fandom para redimensionar.
+     */
+    public String urlMiniatura(String archivo, int ancho) {
+        return urlDirecta(archivo, ancho);
+    }
+
+    static String urlDirecta(String archivo, int ancho) {
+        String nombre = archivo.trim().replace(' ', '_');
+        nombre = nombre.substring(0, 1).toUpperCase(Locale.ROOT) + nombre.substring(1);
+        String md5 = md5(nombre);
+        return CDN + md5.charAt(0) + "/" + md5.substring(0, 2) + "/"
+                + UriUtils.encodePathSegment(nombre, StandardCharsets.UTF_8)
+                + "/revision/latest/scale-to-width-down/" + ancho;
+    }
+
+    private static String md5(String texto) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("MD5").digest(texto.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Respaldo: pregunta a la API la URL de cada archivo (imageinfo). Gasta una consulta por cada 50.
+     *
      * @param archivos nombres de archivo sin el prefijo "File:"
      * @param ancho    ancho de la miniatura en píxeles
      * @return archivo (tal como se pidió) → URL de la miniatura. Solo los que existen.
      */
     public Map<String, String> urls(Collection<String> archivos, int ancho) {
         Map<String, String> resultado = new HashMap<>();
-        for (List<String> lote : lotes(archivos)) {
+        for (List<String> lote : lotes(archivos, LOTE)) {
             String titulos = lote.stream().map(a -> "File:" + a).collect(Collectors.joining("|"));
-            URI uri = UriComponentsBuilder.fromUriString(props.url())
-                    .queryParam("action", "query")
-                    .queryParam("format", "json")
-                    .queryParam("formatversion", 2)
-                    .queryParam("prop", "imageinfo")
-                    .queryParam("iiprop", "url")
-                    .queryParam("iiurlwidth", ancho)
-                    .queryParam("titles", "{titulos}")
-                    .encode()
-                    .buildAndExpand(Map.of("titulos", titulos))
-                    .toUri();
-            resultado.putAll(leerUrls(pedirJson(uri), lote));
-            pausa();
+            JsonNode raiz = api.consultar(Map.of(
+                    "action", "query",
+                    "formatversion", "2",
+                    "prop", "imageinfo",
+                    "iiprop", "url",
+                    "iiurlwidth", String.valueOf(ancho),
+                    "titles", titulos));
+            resultado.putAll(leerUrls(raiz, lote));
         }
         return resultado;
     }
@@ -226,26 +253,6 @@ public class LeaguepediaFotosClient {
 
     // ------------------------- Utilidades -------------------------
 
-    private JsonNode pedirJson(URI uri) {
-        JsonNode raiz;
-        try {
-            String cuerpo = rest.get().uri(uri)
-                    .header(HttpHeaders.USER_AGENT, props.userAgent())
-                    .retrieve()
-                    .body(String.class);
-            raiz = mapper.readTree(cuerpo == null ? "{}" : cuerpo);
-        } catch (RestClientException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "No se pudo conectar con Leaguepedia: " + e.getMessage());
-        } catch (Exception e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Respuesta de Leaguepedia no válida");
-        }
-        if (raiz.has("error")) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY,
-                    "Leaguepedia devolvió un error: " + raiz.path("error").path("info").asText());
-        }
-        return raiz;
-    }
-
     static String clave(String nombre) {
         return nombre.trim().replace('_', ' ').toLowerCase(Locale.ROOT);
     }
@@ -257,20 +264,13 @@ public class LeaguepediaFotosClient {
                 .collect(Collectors.joining(","));
     }
 
-    private static List<List<String>> lotes(Collection<String> valores) {
+    private static List<List<String>> lotes(Collection<String> valores, int tam) {
         List<String> unicos = valores.stream().filter(Objects::nonNull).distinct().toList();
         List<List<String>> lotes = new ArrayList<>();
-        for (int i = 0; i < unicos.size(); i += LOTE) {
-            lotes.add(unicos.subList(i, Math.min(i + LOTE, unicos.size())));
+        for (int i = 0; i < unicos.size(); i += tam) {
+            lotes.add(unicos.subList(i, Math.min(i + tam, unicos.size())));
         }
         return lotes;
     }
 
-    private static void pausa() {
-        try {
-            Thread.sleep(1_500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
 }

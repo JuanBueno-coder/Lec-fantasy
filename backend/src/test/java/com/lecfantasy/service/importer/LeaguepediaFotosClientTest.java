@@ -54,6 +54,25 @@ class LeaguepediaFotosClientTest {
     }
 
     @Test
+    void calculaLaUrlComoMediaWiki() {
+        // Ejemplo conocido de MediaWiki: md5("Example.jpg") empieza por "a9" → images/a/a9/Example.jpg
+        assertThat(LeaguepediaFotosClient.urlDirecta("example.jpg", 256)).isEqualTo(
+                "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/a/a9/Example.jpg"
+                        + "/revision/latest/scale-to-width-down/256");
+        // Espacios como "_" (los paréntesis son válidos en una ruta y no se codifican)
+        assertThat(LeaguepediaFotosClient.urlDirecta("G2 Caps 2026 (1).png", 256))
+                .contains("/G2_Caps_2026_(1).png/");
+    }
+
+    @Test
+    void detectaElLimiteDePeticiones() throws Exception {
+        assertThat(LeaguepediaApi.esLimite(om.readTree(
+                "{\"error\": {\"code\": \"ratelimited\", \"info\": \"You've exceeded your rate limit.\"}}"))).isTrue();
+        assertThat(LeaguepediaApi.esLimite(om.readTree("{\"cargoquery\": []}"))).isFalse();
+        assertThat(LeaguepediaApi.esLimite(om.readTree("{\"error\": {\"code\": \"badvalue\"}}"))).isFalse();
+    }
+
+    @Test
     void escapaLosNombresDelWhere() {
         assertThat(LeaguepediaFotosClient.lista(List.of("Caps", "Raro\"Nombre\\")))
                 .isEqualTo("\"Caps\",\"RaroNombre\"");

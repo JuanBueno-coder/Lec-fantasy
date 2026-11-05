@@ -149,6 +149,7 @@ En el móvil la navegación pasa a una barra inferior.
 | `FRONTEND_URL` | la misma URL (para el enlace de recuperar contraseña) |
 | `GOOGLE_CLIENT_IDS` | client IDs de Google (web y Android) separados por comas |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | opcional, SMTP para correos |
+| `LEAGUEPEDIA_USUARIO`, `LEAGUEPEDIA_PASSWORD` | opcional, bot password de Fandom para que Leaguepedia limite menos (ver sección 4) |
 
 5. **Settings → Networking → Generate Domain**. Comprueba `https://<dominio>/actuator/health`.
 6. **Web**: en el mismo proyecto, **New → GitHub Repo** (el mismo repo) con **Root Directory = `web`**.
@@ -268,21 +269,40 @@ Las fotos salen de la ficha de cada jugador en Leaguepedia (`service/importer/Le
 
 1. **Cargo**, tabla `Players`: el campo `Image` es el archivo de su foto principal. Se busca por la página del
    jugador, que viene en su id externo (`LP:Caps`); a los creados a mano o desde Oracle's Elixir se les busca
-   por el nickname, y si no es una página de jugador, por sus alias (`PlayerRedirects`).
-2. **imageinfo** (API de MediaWiki): da la URL de una miniatura de 256 px.
+   por el nickname, y si no es una página de jugador, por sus alias (`PlayerRedirects`). Todos los jugadores
+   van en una sola consulta.
+2. **URL de la miniatura (256 px)**: se calcula como lo hace MediaWiki (carpetas por el MD5 del nombre del
+   archivo), sin gastar consultas. Solo si falla se pregunta a la API (`imageinfo`).
 3. Se **descarga** del CDN de Fandom y se guarda en la tabla `foto_jugador`. La API la sirve en
    `GET /api/jugadores/{id}/foto?v=...` con caché larga, y el campo `fotoUrl` del jugador ya trae esa ruta.
 
 Guardarlas en la base de datos evita depender de que Fandom deje enlazar sus imágenes desde otras webs y de
 que el navegador de cada usuario se conecte a Fandom. Son unos 20-40 KB por jugador.
 
-- **Administración → Jugadores → Traer fotos de Leaguepedia** trae las que faltan. Con «Comprobar también las
+- **Administración → Jugadores → Traer fotos de Leaguepedia** las trae **en segundo plano** (puede tardar
+  unos minutos por el límite de Leaguepedia; la pantalla va mostrando el progreso). Con «Comprobar también las
   que ya tienen foto» mira si ha cambiado alguna (p. ej. al empezar un split) y no vuelve a bajar las iguales.
-- La **automatización semanal** trae las de los jugadores nuevos tras importar
+- La **automatización semanal** busca las de los jugadores nuevos tras importar
   (`LEAGUEPEDIA_FOTOS_AUTOMATICAS=false` para desactivarlo).
 - Si el administrador cambia o borra la URL de la foto de un jugador, manda la suya y se quita la de Leaguepedia.
 - **App Android**: `fotoUrl` puede ser una ruta relativa (`/api/...`); hay que anteponerle la URL del backend,
   como hace la web en `urlRecurso()` (`web/src/api/cliente.js`).
+
+### Límite de peticiones de Leaguepedia
+
+Sin cuenta, Leaguepedia solo deja **una consulta cada 30-60 segundos** (responde «You've exceeded your rate
+limit»), y si se insiste estando limitado la penalización se alarga. Todas las llamadas pasan por
+`service/importer/LeaguepediaApi.java`, que deja 40 s entre consultas y, si salta el límite, reintenta tras
+1, 2 y 4 minutos. La importación de una jornada son una o dos consultas, así que no le afecta.
+
+Para tener más margen, crea un **bot password** (opcional):
+
+1. Entra con tu cuenta de Fandom en <https://lol.fandom.com/wiki/Special:BotPasswords>.
+2. Ponle un nombre (p. ej. `lecfantasy`) y marca solo **Basic rights** (y, si aparece, la de consultas de Cargo).
+3. En Railway → backend → Variables: `LEAGUEPEDIA_USUARIO=TuUsuario@lecfantasy` y
+   `LEAGUEPEDIA_PASSWORD=<la contraseña generada>`.
+
+Con sesión iniciada el backend deja 4 s entre consultas. En los logs aparece `Leaguepedia: sesión iniciada como ...`.
 
 ---
 
@@ -307,7 +327,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Admin 🔒**: `GET /admin/dashboard`, `/admin/actividad`, `/admin/usuarios?q=&estado=&pais=`,
 `GET /admin/usuarios/{id}`, `POST|DELETE /admin/usuarios/{id}/baneo`, `PUT /admin/usuarios/{id}/rol`,
-`DELETE /admin/usuarios/{id}`, `GET|POST /admin/jugadores`, `PUT /admin/jugadores/{id}`, `POST /admin/jugadores/fotos/leaguepedia?todas=`,
+`DELETE /admin/usuarios/{id}`, `GET|POST /admin/jugadores`, `PUT /admin/jugadores/{id}`, `POST|GET /admin/jugadores/fotos/leaguepedia?todas=` (lanzar / estado),
 `POST|DELETE /admin/jugadores/{id}/bloqueo`, `POST|PUT /admin/equipos-pro`, `POST|PUT|DELETE /admin/jornadas`,
 `POST /admin/jornadas/{id}/iniciar`, `/importar/leaguepedia`, `/importar/csv`, `GET /previsualizacion`,
 `POST /finalizar`, `GET /admin/automatizacion`, `POST /admin/automatizacion/ejecutar`, `DELETE /admin/partidas/{id}`, `GET|POST|PUT /admin/mejoras`,

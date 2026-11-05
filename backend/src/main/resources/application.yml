@@ -61,9 +61,13 @@ app:
     from: ${MAIL_FROM:LEC Fantasy <no-reply@lecfantasy.app>}
   leaguepedia:
     url: https://lol.fandom.com/api.php
-    user-agent: LECFantasyTFG/1.0 (proyecto de fin de grado)
+    user-agent: LECFantasyTFG/1.0 (proyecto de fin de grado; https://github.com/JuanBueno-coder/lec-fantasy)
     # Fotos de los jugadores (tabla Cargo Players): la automatización trae las que falten
     fotos-automaticas: ${LEAGUEPEDIA_FOTOS_AUTOMATICAS:true}
+    # Opcional: bot password de Fandom (lol.fandom.com/wiki/Special:BotPasswords) para tener más límite.
+    # Usuario con el formato "TuUsuario@NombreDelBot". Sin él, ~1 consulta por minuto.
+    usuario: ${LEAGUEPEDIA_USUARIO:}
+    password: ${LEAGUEPEDIA_PASSWORD:}
   # Jornadas automáticas con Leaguepedia (ver service/AutomatizacionJornadas.java).
   # Cron de Spring: segundo minuto hora día mes día-de-la-semana.
   automatizacion:

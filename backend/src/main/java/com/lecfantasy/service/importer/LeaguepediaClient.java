@@ -1,21 +1,11 @@
 package com.lecfantasy.service.importer;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lecfantasy.common.ApiException;
-import com.lecfantasy.config.AppProperties;
 import com.lecfantasy.domain.Posicion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,17 +29,10 @@ public class LeaguepediaClient {
             "SP.Champion=Champion", "SP.Kills=Kills", "SP.Deaths=Deaths", "SP.Assists=Assists", "SP.CS=CS",
             "SP.VisionScore=VisionScore", "SP.PlayerWin=PlayerWin");
 
-    private final RestClient rest;
-    private final ObjectMapper mapper;
-    private final AppProperties props;
+    private final LeaguepediaApi api;
 
-    public LeaguepediaClient(ObjectMapper mapper, AppProperties props) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(60_000);
-        this.rest = RestClient.builder().requestFactory(factory).build();
-        this.mapper = mapper;
-        this.props = props;
+    public LeaguepediaClient(LeaguepediaApi api) {
+        this.api = api;
     }
 
     /**
@@ -66,27 +49,14 @@ public class LeaguepediaClient {
         List<StatLine> lineas = new ArrayList<>();
         int offset = 0;
         while (true) {
-            URI uri = UriComponentsBuilder.fromUriString(props.leaguepedia().url())
-                    .queryParam("action", "cargoquery")
-                    .queryParam("format", "json")
-                    .queryParam("tables", "{tablas}")
-                    .queryParam("fields", "{campos}")
-                    .queryParam("where", "{where}")
-                    .queryParam("order_by", "{orden}")
-                    .queryParam("limit", PAGINA)
-                    .queryParam("offset", offset)
-                    .encode()
-                    .buildAndExpand(Map.of(
-                            "tablas", "ScoreboardPlayers=SP",
-                            "campos", CAMPOS,
-                            "where", where,
-                            "orden", "SP.DateTime_UTC,SP.GameId"))
-                    .toUri();
-            JsonNode raiz = pedir(uri);
-            if (raiz.has("error")) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY,
-                        "Leaguepedia devolvió un error: " + raiz.path("error").path("info").asText());
-            }
+            JsonNode raiz = api.consultar(Map.of(
+                    "action", "cargoquery",
+                    "tables", "ScoreboardPlayers=SP",
+                    "fields", CAMPOS,
+                    "where", where,
+                    "order_by", "SP.DateTime_UTC,SP.GameId",
+                    "limit", String.valueOf(PAGINA),
+                    "offset", String.valueOf(offset)));
             JsonNode filas = raiz.path("cargoquery");
             for (JsonNode fila : filas) {
                 StatLine l = convertir(fila.path("title"));
@@ -97,25 +67,10 @@ public class LeaguepediaClient {
             if (filas.size() < PAGINA) {
                 break;
             }
-            offset += PAGINA;
-            pausa(); // Leaguepedia limita el número de peticiones por minuto
+            offset += PAGINA; // LeaguepediaApi espera entre consultas (Leaguepedia limita las peticiones por minuto)
         }
         log.info("Leaguepedia: {} líneas de jugador entre {} y {}", lineas.size(), desde, hasta);
         return lineas;
-    }
-
-    private JsonNode pedir(URI uri) {
-        try {
-            String cuerpo = rest.get().uri(uri)
-                    .header(HttpHeaders.USER_AGENT, props.leaguepedia().userAgent())
-                    .retrieve()
-                    .body(String.class);
-            return mapper.readTree(cuerpo == null ? "{}" : cuerpo);
-        } catch (RestClientException e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "No se pudo conectar con Leaguepedia: " + e.getMessage());
-        } catch (Exception e) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "Respuesta de Leaguepedia no válida");
-        }
     }
 
     StatLine convertir(JsonNode t) {
@@ -153,11 +108,4 @@ public class LeaguepediaClient {
         return parentesis > 0 ? link.substring(0, parentesis).trim() : link.trim();
     }
 
-    private static void pausa() {
-        try {
-            Thread.sleep(1_500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
 }
