@@ -13,8 +13,9 @@ const routes = [
     component: LayoutPublico,
     children: [
       { path: '', name: 'inicio', component: () => import('./views/publico/Inicio.vue') },
-      { path: 'objetivos', name: 'objetivos', component: () => import('./views/publico/Objetivos.vue') },
-      { path: 'como-funciona', name: 'como-funciona', component: () => import('./views/publico/ComoFunciona.vue') },
+      // Objetivos y Cómo funciona ahora son secciones de la portada (scroll continuo)
+      { path: 'objetivos', redirect: { path: '/', hash: '#objetivos' } },
+      { path: 'como-funciona', redirect: { path: '/', hash: '#como-funciona' } },
       { path: 'noticias', name: 'noticias', component: () => import('./views/publico/Noticias.vue') },
       { path: 'noticias/:id', name: 'noticia', component: () => import('./views/publico/NoticiaDetalle.vue') },
       { path: 'privacidad', name: 'legal', component: () => import('./views/publico/Legal.vue') }
@@ -76,7 +77,11 @@ async function irAEquipoActivo(sufijo) {
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: () => ({ top: 0 })
+  scrollBehavior(to, from, guardada) {
+    if (guardada) return guardada
+    if (to.hash) return { el: to.hash, behavior: 'smooth' }
+    return { top: 0 }
+  }
 })
 
 router.beforeEach(async (to) => {
