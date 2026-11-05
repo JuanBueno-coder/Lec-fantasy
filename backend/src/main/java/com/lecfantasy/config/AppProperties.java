@@ -41,8 +41,11 @@ public record AppProperties(
     /**
      * API de Leaguepedia (lol.fandom.com). fotosAutomaticas: si la automatización semanal trae también
      * las fotos de los jugadores que aún no tienen (el botón del panel funciona siempre).
+     * usuario/password: bot password de Fandom (Special:BotPasswords), opcional; sin él Leaguepedia solo
+     * deja una consulta por minuto aproximadamente.
      */
-    public record Leaguepedia(String url, String userAgent, boolean fotosAutomaticas) {
+    public record Leaguepedia(String url, String userAgent, boolean fotosAutomaticas, String usuario,
+                              String password) {
     }
 
     /**

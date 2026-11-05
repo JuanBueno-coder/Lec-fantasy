@@ -133,13 +133,20 @@ public class AdminController {
     }
 
     /**
-     * Trae de Leaguepedia (API Cargo) las fotos de los jugadores.
+     * Empieza a traer de Leaguepedia (API Cargo) las fotos de los jugadores, en segundo plano.
      * todas=false: solo los que no tienen foto. todas=true: comprueba también si ha cambiado la de los demás.
+     * Devuelve 202 enseguida; el resultado se consulta con el GET.
      */
     @PostMapping("/jugadores/fotos/leaguepedia")
-    public FotoJugadorService.ResultadoFotos traerFotos(@AuthenticationPrincipal AuthUser admin,
-                                                        @RequestParam(defaultValue = "false") boolean todas) {
-        return fotos.sincronizar(admin, todas);
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public FotoJugadorService.EstadoFotos traerFotos(@AuthenticationPrincipal AuthUser admin,
+                                                     @RequestParam(defaultValue = "false") boolean todas) {
+        return fotos.lanzar(admin, todas);
+    }
+
+    @GetMapping("/jugadores/fotos/leaguepedia")
+    public FotoJugadorService.EstadoFotos estadoFotos() {
+        return fotos.estado();
     }
 
     @PostMapping("/equipos-pro")

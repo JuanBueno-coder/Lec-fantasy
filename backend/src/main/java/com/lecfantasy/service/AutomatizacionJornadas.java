@@ -168,10 +168,10 @@ public class AutomatizacionJornadas {
             if (!fotos.faltanFotos()) {
                 return;
             }
-            var r = fotos.sincronizar(null, false);
-            if (r.actualizadas() > 0) {
-                acciones.add("Fotos de Leaguepedia: " + r.actualizadas() + " jugador(es) nuevos con foto.");
-            }
+            // En segundo plano: con el límite de Leaguepedia puede tardar minutos. Si trae alguna,
+            // queda en el registro de actividad como «El sistema trajo de Leaguepedia N foto(s)...»
+            fotos.lanzar(null, false);
+            acciones.add("Fotos de Leaguepedia: buscando en segundo plano las de los jugadores que no tienen.");
         } catch (RuntimeException e) {
             // Las fotos no son imprescindibles: un fallo aquí no debe parar las jornadas
             log.warn("No se pudieron traer las fotos de Leaguepedia", e);
