@@ -267,10 +267,11 @@ El panel guarda el calendario 15 minutos en memoria para no gastar peticiones (e
 
 Las fotos salen de la ficha de cada jugador en Leaguepedia (`service/importer/LeaguepediaFotosClient.java`):
 
-1. **Cargo**, tabla `Players`: el campo `Image` es el archivo de su foto principal. Se busca por la página del
-   jugador, que viene en su id externo (`LP:Caps`); a los creados a mano o desde Oracle's Elixir se les busca
-   por el nickname, y si no es una página de jugador, por sus alias (`PlayerRedirects`). Todos los jugadores
-   van en una sola consulta.
+1. **Cargo**, tabla `PlayerImages` (una foto por jugador y torneo) cruzada con `Tournaments` para quedarse con
+   la del torneo más reciente (p. ej. `VIT Fleshy 2026 Split 3.png`). `Players.Image` y `PlayerImages.SortDate`
+   vienen vacíos en Leaguepedia, por eso no se usan. Se busca por la página del jugador, que viene en su id
+   externo (`LP:Caps`); a los creados a mano o desde Oracle's Elixir se les busca por el nickname, y si no es
+   una página de jugador, por sus alias (`PlayerRedirects`).
 2. **URL de la miniatura (256 px)**: se calcula como lo hace MediaWiki (carpetas por el MD5 del nombre del
    archivo), sin gastar consultas. Solo si falla se pregunta a la API (`imageinfo`).
 3. Se **descarga** del CDN de Fandom y se guarda en la tabla `foto_jugador`. La API la sirve en

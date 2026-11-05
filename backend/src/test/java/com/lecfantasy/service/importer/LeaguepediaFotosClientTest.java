@@ -16,10 +16,11 @@ class LeaguepediaFotosClientTest {
     private final ObjectMapper om = new ObjectMapper();
 
     @Test
-    void leeLosArchivosDeCargo() throws Exception {
+    void leeLosArchivosDeCargoYSeQuedaConLaMasReciente() throws Exception {
         JsonNode filas = om.readTree("""
                 [
                   {"title": {"Pagina": "Caps", "Imagen": "G2 Caps 2026 Split 1.png"}},
+                  {"title": {"Pagina": "Caps", "Imagen": "G2 Caps 2025 Split 3.png"}},
                   {"title": {"Pagina": "Jun (Yoon Se-jun)", "Imagen": "G2 Jun 2026.png"}},
                   {"title": {"Pagina": "SinFoto", "Imagen": ""}}
                 ]""");

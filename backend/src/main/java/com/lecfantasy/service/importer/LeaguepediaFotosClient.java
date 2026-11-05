@@ -1,6 +1,8 @@
 package com.lecfantasy.service.importer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.lecfantasy.common.ApiException;
 import com.lecfantasy.config.AppProperties;
 import org.slf4j.Logger;
@@ -25,9 +27,10 @@ import java.util.stream.Collectors;
 /**
  * Fotos de los jugadores desde Leaguepedia, en tres pasos:
  * <ol>
- *   <li><b>Cargo</b>, tabla {@code Players}: el campo {@code Image} es el archivo de la foto principal de la
- *       página del jugador (la misma que se ve en su ficha de la wiki). Si el nombre no es una página de
- *       jugador, se busca en {@code PlayerRedirects} (nombres antiguos y alias).</li>
+ *   <li><b>Cargo</b>, tabla {@code PlayerImages} (una foto por jugador y torneo) cruzada con {@code Tournaments}
+ *       para quedarse con la del torneo más reciente. ({@code Players.Image} está vacío en Leaguepedia y
+ *       {@code PlayerImages.SortDate} también.) Si el nombre no es una página de jugador, se busca por sus
+ *       alias en {@code PlayerRedirects}.</li>
  *   <li><b>URL de la miniatura</b>: se calcula como lo hace MediaWiki (carpetas por el MD5 del nombre del
  *       archivo), sin gastar consultas. Si esa URL falla, se pregunta a la API con {@code imageinfo}.</li>
  *   <li><b>Descarga</b> de la miniatura desde el CDN de Fandom (static.wikia.nocookie.net), que no cuenta para
@@ -40,8 +43,11 @@ import java.util.stream.Collectors;
 public class LeaguepediaFotosClient {
 
     private static final Logger log = LoggerFactory.getLogger(LeaguepediaFotosClient.class);
-    /** Nombres por consulta Cargo (la URL sigue siendo corta y caben en una página de 500 filas). */
-    static final int LOTE_CARGO = 150;
+    /** Nombres por consulta Cargo (cada jugador tiene una foto por torneo: unas 10-30 filas). */
+    static final int LOTE_CARGO = 100;
+    private static final int FILAS_POR_PAGINA = 500;
+    /** De la foto más reciente a la más antigua (SortDate viene vacío; se usa la fecha del torneo). */
+    private static final String ORDEN_RECIENTE = "T.DateStart DESC,PI._ID DESC";
     /** Títulos por consulta imageinfo: el máximo de MediaWiki para clientes sin permisos de bot. */
     static final int LOTE = 50;
     /** Carpeta de imágenes de Leaguepedia en el CDN de Fandom. */
@@ -75,9 +81,11 @@ public class LeaguepediaFotosClient {
         Map<String, String> resultado = new HashMap<>();
         for (List<String> lote : lotes(paginas, LOTE_CARGO)) {
             JsonNode filas = cargo(Map.of(
-                    "tables", "Players=P",
-                    "fields", "P.OverviewPage=Pagina,P.Image=Imagen",
-                    "where", "P.OverviewPage IN (" + lista(lote) + ")"));
+                    "tables", "PlayerImages=PI,Tournaments=T",
+                    "join_on", "PI.Tournament=T.OverviewPage",
+                    "fields", "PI.Link=Pagina,PI.FileName=Imagen",
+                    "where", "PI.Link IN (" + lista(lote) + ")",
+                    "order_by", ORDEN_RECIENTE));
             resultado.putAll(leerArchivos(filas, "Pagina"));
         }
 
@@ -88,17 +96,18 @@ public class LeaguepediaFotosClient {
             try {
                 for (List<String> lote : lotes(restantes, LOTE_CARGO)) {
                     JsonNode filas = cargo(Map.of(
-                            "tables", "PlayerRedirects=PR,Players=P",
-                            "join_on", "PR.OverviewPage=P.OverviewPage",
-                            "fields", "PR.AllName=Nombre,P.Image=Imagen",
-                            "where", "PR.AllName IN (" + lista(lote) + ")"));
+                            "tables", "PlayerRedirects=PR,PlayerImages=PI,Tournaments=T",
+                            "join_on", "PR.OverviewPage=PI.Link,PI.Tournament=T.OverviewPage",
+                            "fields", "PR.AllName=Nombre,PI.FileName=Imagen",
+                            "where", "PR.AllName IN (" + lista(lote) + ") AND PI.FileName IS NOT NULL",
+                            "order_by", ORDEN_RECIENTE));
                     leerArchivos(filas, "Nombre").forEach(resultado::putIfAbsent);
                 }
             } catch (ApiException e) {
                 if (e.getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
                     throw e; // límite de Leaguepedia: que lo vea el administrador
                 }
-                // Es solo un respaldo: si falla, nos quedamos con lo encontrado en Players
+                // Es solo un respaldo: si falla, nos quedamos con lo encontrado
                 log.warn("Leaguepedia: no se pudieron buscar alias de jugadores ({})", e.getMessage());
             }
         }
@@ -106,7 +115,10 @@ public class LeaguepediaFotosClient {
         return resultado;
     }
 
-    /** Filas de cargoquery → nombre en minúsculas → archivo (se ignoran los que no tienen imagen). */
+    /**
+     * Filas de cargoquery → nombre en minúsculas → archivo (se ignoran los que no tienen imagen).
+     * Vienen ordenadas de la foto más reciente a la más antigua, así que se queda la primera de cada jugador.
+     */
     static Map<String, String> leerArchivos(JsonNode filas, String campoNombre) {
         Map<String, String> mapa = new HashMap<>();
         for (JsonNode fila : filas) {
@@ -120,11 +132,21 @@ public class LeaguepediaFotosClient {
         return mapa;
     }
 
+    /** Todas las filas de una consulta Cargo, pidiendo páginas de 500 (como mucho 10 páginas). */
     private JsonNode cargo(Map<String, String> parametros) {
-        Map<String, String> todos = new LinkedHashMap<>(parametros);
-        todos.put("action", "cargoquery");
-        todos.put("limit", "500");
-        return api.consultar(todos).path("cargoquery");
+        ArrayNode todas = JsonNodeFactory.instance.arrayNode();
+        for (int pagina = 0; pagina < 10; pagina++) {
+            Map<String, String> todos = new LinkedHashMap<>(parametros);
+            todos.put("action", "cargoquery");
+            todos.put("limit", String.valueOf(FILAS_POR_PAGINA));
+            todos.put("offset", String.valueOf(pagina * FILAS_POR_PAGINA));
+            JsonNode filas = api.consultar(todos).path("cargoquery");
+            filas.forEach(todas::add);
+            if (filas.size() < FILAS_POR_PAGINA) {
+                break;
+            }
+        }
+        return todas;
     }
 
     // ------------------------- 2. URL de la miniatura -------------------------
