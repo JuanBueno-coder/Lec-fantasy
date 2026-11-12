@@ -38,4 +38,21 @@ public class Noticia {
 
     @Column(nullable = false)
     private LocalDateTime fechaPublicacion;
+
+    /** MANUAL (la escribe un administrador) o el canal oficial del que se importó. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private OrigenNoticia origen = OrigenNoticia.MANUAL;
+
+    /** Id de la publicación en su red (tuit, vídeo): evita importarla dos veces. */
+    @Column(length = 100)
+    private String idExterno;
+
+    /** Enlace a la publicación original. */
+    @Column(length = 500)
+    private String urlExterna;
+
+    /** Cuenta oficial que la publicó, p. ej. "@LEC". */
+    @Column(length = 100)
+    private String autorExterno;
 }

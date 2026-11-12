@@ -84,3 +84,15 @@ app:
     liga-id: ${PANDASCORE_LIGA_ID:}
     liga-nombre: LEC
     dias-calendario: 21
+  # Noticias de los canales oficiales de la LEC (ver service/noticias). Ninguna key va en el código.
+  noticias:
+    automaticas: ${NOTICIAS_AUTOMATICAS:true}
+    cron: ${NOTICIAS_CRON:0 */30 * * * *}   # cada 30 minutos
+    x:
+      url: https://api.x.com
+      token: ${X_BEARER_TOKEN:}            # Bearer token de la app de X (de pago por uso)
+      cuentas: ${X_CUENTAS:LEC}
+      max-por-consulta: ${X_MAX_POR_CONSULTA:10}
+    youtube:
+      canales: ${YOUTUBE_CANALES:@LEC}     # gratis: feed RSS del canal oficial
+

@@ -6,11 +6,11 @@
     <div v-if="!cargando && !noticias.length && !error" class="vacio tarjeta">Todavía no hay noticias publicadas.</div>
     <div class="pila mt">
       <RouterLink v-for="n in noticias" :key="n.id" :to="`/noticias/${n.id}`" class="tarjeta noticia">
-        <img v-if="n.imagenUrl" :src="n.imagenUrl" alt="" class="imagen" />
+        <img v-if="n.imagenUrl" :src="n.imagenUrl" alt="" class="imagen" loading="lazy" referrerpolicy="no-referrer" />
         <div>
-          <span class="tenue">{{ fecha(n.fechaPublicacion) }}<template v-if="n.autor"> · {{ n.autor }}</template></span>
+          <span class="tenue"><span class="chip">{{ origenNoticia(n).nombre }}</span> {{ fecha(n.fechaPublicacion) }}<template v-if="n.autor"> · {{ n.autor }}</template></span>
           <h2>{{ n.titulo }}</h2>
-          <p class="muted">{{ n.resumen || recortar(n.contenido) }}</p>
+          <p v-if="n.resumen || n.contenido !== n.titulo" class="muted">{{ n.resumen || recortar(n.contenido) }}</p>
         </div>
       </RouterLink>
     </div>
@@ -27,6 +27,7 @@ import { onMounted, ref } from 'vue'
 import Alerta from '../../components/Alerta.vue'
 import { api } from '../../api/cliente'
 import { fecha } from '../../utils/formato'
+import { origenNoticia } from '../../utils/noticias'
 
 const noticias = ref([])
 const pagina = ref(0)
