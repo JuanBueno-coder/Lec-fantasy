@@ -14,6 +14,7 @@ import com.lecfantasy.security.AuthUser;
 import com.lecfantasy.service.*;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import com.lecfantasy.service.noticias.NoticiasExternasService;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -31,13 +32,16 @@ public class AdminController {
     private final JornadaService jornadas;
     private final MejoraService mejoras;
     private final NoticiaService noticias;
+    private final NoticiasExternasService noticiasExternas;
     private final ReporteService reportes;
     private final AutomatizacionJornadas automatizacion;
     private final FotoJugadorService fotos;
 
     public AdminController(AdminUsuarioService usuarios, JugadorService jugadores, JornadaService jornadas,
                            MejoraService mejoras, NoticiaService noticias, ReporteService reportes,
-                           AutomatizacionJornadas automatizacion, FotoJugadorService fotos) {
+                           AutomatizacionJornadas automatizacion, FotoJugadorService fotos,
+                           NoticiasExternasService noticiasExternas) {
+        this.noticiasExternas = noticiasExternas;
         this.fotos = fotos;
         this.automatizacion = automatizacion;
         this.usuarios = usuarios;
@@ -263,6 +267,18 @@ public class AdminController {
     public NoticiaDto editarNoticia(@AuthenticationPrincipal AuthUser admin, @PathVariable Long id,
                                     @Valid @RequestBody NoticiaRequest req) {
         return noticias.editar(admin, id, req);
+    }
+
+    /** Canales oficiales configurados y la última importación. */
+    @GetMapping("/noticias/fuentes")
+    public NoticiasExternasService.Estado fuentesNoticias() {
+        return noticiasExternas.estado();
+    }
+
+    /** Trae ahora las publicaciones nuevas de X y YouTube. */
+    @PostMapping("/noticias/importar")
+    public NoticiasExternasService.Importacion importarNoticias(@AuthenticationPrincipal AuthUser admin) {
+        return noticiasExternas.importar(admin);
     }
 
     @DeleteMapping("/noticias/{id}")

@@ -16,7 +16,8 @@ public record AppProperties(
         Mail mail,
         Leaguepedia leaguepedia,
         Automatizacion automatizacion,
-        PandaScore pandascore) {
+        PandaScore pandascore,
+        Noticias noticias) {
 
     public record Jwt(String secret, long expiracionHoras, long expiracionRecordarmeDias) {
     }
@@ -65,5 +66,27 @@ public record AppProperties(
      * diasCalendario: cuántos días hacia delante se miran para crear jornadas y mostrar partidos.
      */
     public record PandaScore(String url, String token, Long ligaId, String ligaNombre, int diasCalendario) {
+    }
+
+    /**
+     * Noticias importadas de los canales oficiales de la LEC.
+     * automaticas: si la tarea programada (cron) las trae sola; el botón del panel funciona siempre.
+     */
+    public record Noticias(boolean automaticas, String cron, X x, YouTube youtube) {
+    }
+
+    /**
+     * API v2 de X (Twitter). token vacío = desactivado. Es de pago por uso (cada publicación leída cuenta),
+     * así que solo se piden las publicaciones nuevas desde la última importada (since_id).
+     * cuentas: usuarios sin @, p. ej. LEC. maxPorConsulta: entre 5 y 100.
+     */
+    public record X(String url, String token, List<String> cuentas, int maxPorConsulta) {
+    }
+
+    /**
+     * Vídeos de canales de YouTube por su feed RSS público (gratis, sin key).
+     * canales: id del canal (UC...) o su @usuario, que se resuelve al id la primera vez.
+     */
+    public record YouTube(List<String> canales) {
     }
 }

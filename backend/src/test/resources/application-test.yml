@@ -30,3 +30,15 @@ app:
     token: ""
     liga-nombre: LEC
     dias-calendario: 21
+  # En los tests nunca se sale a X ni a YouTube
+  noticias:
+    automaticas: false
+    cron: "-"
+    x:
+      url: http://localhost:9
+      token: ""
+      cuentas: LEC
+      max-por-consulta: 10
+    youtube:
+      canales: ""
+

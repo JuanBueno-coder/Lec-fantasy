@@ -106,8 +106,9 @@ así que arranca antes el backend. Para el botón de Google, copia `.env.example
 `VITE_GOOGLE_CLIENT_ID`.
 
 **Pantallas**: inicio, objetivos, cómo funciona, noticias, login, registro, recuperar contraseña ·
-juego (barra: Inicio · Mi equipo · Mercado · Mis ligas · Estadísticas · Mi cuenta): panel con cuenta atrás
-del cierre de alineación, mi equipo sobre el mapa de la Grieta (alineación, mejoras, banquillo, puntos,
+juego (barra: Inicio · Mi equipo · Mercado · Mis ligas · Estadísticas · Mi cuenta): inicio «La semana en la LEC»
+(partidos con tus jugadores de todas tus ligas, jugador de la jornada, top 5, los que suben y bajan de precio y
+noticias de los canales oficiales), mi equipo sobre el mapa de la Grieta (alineación, mejoras, banquillo, puntos,
 movimientos), mercado con ventana de fichaje, ficha del jugador con gráfica de precio y puntos por partida,
 ligas y clasificación con racha y detalle del rival, explorador de estadísticas, mi cuenta (apariencia,
 notificaciones, reglamento, datos y contraseña), jornadas y partida · administración: panel de control,
@@ -304,6 +305,24 @@ Para tener más margen, crea un **bot password** (opcional):
 
 Con sesión iniciada el backend deja 4 s entre consultas. En los logs aparece `Leaguepedia: sesión iniciada como ...`.
 
+### Noticias de los canales oficiales (X y YouTube)
+
+Las noticias ya no hace falta escribirlas a mano: el backend las trae solas cada 30 minutos de los canales
+oficiales de la LEC (`service/noticias`) y las publica. En **Administración → Noticias** se ve el estado de cada
+canal y hay un botón **Importar ahora**. Las importadas se pueden ocultar o borrar como cualquier otra, y en la
+web llevan la etiqueta del canal y un enlace a la publicación original.
+
+| Canal | Coste | Variables |
+|---|---|---|
+| **YouTube** (feed RSS del canal) | Gratis, sin key | `YOUTUBE_CANALES` (por defecto `@LEC`; también vale el id `UC...`) |
+| **X / Twitter** (API v2) | De pago por uso: X cobra cada publicación leída | `X_BEARER_TOKEN` (sin él, X queda desactivado) y `X_CUENTAS` (por defecto `LEC`) |
+
+Para X: crea una app en <https://developer.x.com>, activa la facturación y copia el **Bearer Token** solo en las
+variables del backend en Railway (nunca en el código ni en la web). Para gastar lo mínimo, el backend excluye
+respuestas y reposts, pide solo las publicaciones posteriores a la última importada y como mucho
+`X_MAX_POR_CONSULTA` (10) por cuenta cada vez. Con `NOTICIAS_AUTOMATICAS=false` se apaga la tarea programada
+y `NOTICIAS_CRON` cambia su frecuencia.
+
 ---
 
 ## 5. Resumen de la API
@@ -315,7 +334,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 
 **Usuario 🔒**: `GET|PUT /usuarios/me`, `PUT /usuarios/me/apariencia` (`{ tema: OSCURO|CLARO, colorAcento: "#RRGGBB" }`), `PUT /usuarios/me/password`, `GET /usuarios/{id}`, `POST /reportes`
 
-**Público**: `GET /calendario` (próximos partidos, PandaScore), `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jugadores/{id}/foto`, `/jornadas`,
+**Público**: `GET /calendario` (próximos partidos, PandaScore), `GET /semana` (top 5 de la última jornada y los que más suben y bajan de precio), `GET /equipos-pro`, `/jugadores?posicion=&equipoId=&q=`, `/jugadores/{id}`, `/jugadores/{id}/foto`, `/jornadas`,
 `/jornadas/{id}/partidas`, `/partidas/{id}`, `/mejoras`, `/noticias`, `/noticias/{id}`, `/ligas/publicas`
 
 **Ligas 🔒**: `GET /ligas/mias`, `POST /ligas`, `POST /ligas/unirse` (código), `GET /ligas/{id}`,
@@ -331,7 +350,7 @@ las de `/api/admin` necesitan además rol ADMIN. Detalle completo en Swagger.
 `POST|DELETE /admin/jugadores/{id}/bloqueo`, `POST|PUT /admin/equipos-pro`, `POST|PUT|DELETE /admin/jornadas`,
 `POST /admin/jornadas/{id}/iniciar`, `/importar/leaguepedia`, `/importar/csv`, `GET /previsualizacion`,
 `POST /finalizar`, `GET /admin/automatizacion`, `POST /admin/automatizacion/ejecutar`, `DELETE /admin/partidas/{id}`, `GET|POST|PUT /admin/mejoras`,
-`GET|POST|PUT|DELETE /admin/noticias`, `GET /admin/reportes?estado=`, `POST /admin/reportes/{id}/resolver`
+`GET|POST|PUT|DELETE /admin/noticias`, `GET /admin/noticias/fuentes`, `POST /admin/noticias/importar`, `GET /admin/reportes?estado=`, `POST /admin/reportes/{id}/resolver`
 
 ---
 

@@ -233,6 +233,19 @@ class FlujoCompletoTest {
         assertThat(historialMid).hasSize(2);
         assertThat(historialMid.get(0).get("valor").decimalValue())
                 .isEqualByComparingTo(fichaMid.get("jugador").get("valorAnterior").decimalValue());
+
+        // «La semana en la LEC»: el top de la jornada recién cerrada y los cambios de precio
+        JsonNode semana = enviar(get("/api/semana"), null, null, 200);
+        assertThat(semana.get("jornada").get("id").asLong()).isEqualTo(j1);
+        JsonNode top = semana.get("top");
+        assertThat(top.size()).isBetween(1, 5);
+        for (int i = 1; i < top.size(); i++) {
+            assertThat(top.get(i - 1).get("puntos").decimalValue())
+                    .isGreaterThanOrEqualTo(top.get(i).get("puntos").decimalValue());
+        }
+        assertThat(top.get(0).get("jugador").get("nickname").asText()).isNotBlank();
+        semana.get("suben").forEach(v -> assertThat(v.get("porcentaje").decimalValue()).isPositive());
+        semana.get("bajan").forEach(v -> assertThat(v.get("porcentaje").decimalValue()).isNegative());
         assertThat(historialMid.get(1).get("valor").decimalValue())
                 .isEqualByComparingTo(fichaMid.get("jugador").get("valorMercado").decimalValue());
         assertThat(historialMid.get(1).get("jornadaId").asLong()).isEqualTo(j1);

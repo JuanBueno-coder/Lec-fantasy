@@ -5,6 +5,7 @@ import com.lecfantasy.domain.Posicion;
 import com.lecfantasy.dto.CatalogoDtos.*;
 import com.lecfantasy.dto.JornadaDtos.*;
 import com.lecfantasy.dto.NoticiaDtos.NoticiaDto;
+import com.lecfantasy.dto.SemanaDtos.SemanaDto;
 import com.lecfantasy.security.AuthUser;
 import com.lecfantasy.domain.FotoJugador;
 import com.lecfantasy.service.FotoJugadorService;
@@ -12,6 +13,7 @@ import com.lecfantasy.service.JornadaService;
 import com.lecfantasy.service.JugadorService;
 import com.lecfantasy.service.MejoraService;
 import com.lecfantasy.service.NoticiaService;
+import com.lecfantasy.service.SemanaService;
 import com.lecfantasy.service.calendario.CalendarioService;
 import com.lecfantasy.service.calendario.PartidoCalendario;
 import org.springframework.http.CacheControl;
@@ -34,9 +36,12 @@ public class CatalogoController {
     private final NoticiaService noticias;
     private final CalendarioService calendario;
     private final FotoJugadorService fotos;
+    private final SemanaService semana;
 
     public CatalogoController(JugadorService jugadores, JornadaService jornadas, MejoraService mejoras,
-                              NoticiaService noticias, CalendarioService calendario, FotoJugadorService fotos) {
+                              NoticiaService noticias, CalendarioService calendario, FotoJugadorService fotos,
+                              SemanaService semana) {
+        this.semana = semana;
         this.fotos = fotos;
         this.calendario = calendario;
         this.jugadores = jugadores;
@@ -52,6 +57,12 @@ public class CatalogoController {
     @GetMapping("/calendario")
     public List<PartidoCalendario> calendario() {
         return calendario.proximos();
+    }
+
+    /** «La semana en la LEC»: top de la última jornada jugada y los que más suben y bajan de precio. */
+    @GetMapping("/semana")
+    public SemanaDto semana() {
+        return semana.semana();
     }
 
     @GetMapping("/equipos-pro")
