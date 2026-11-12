@@ -74,7 +74,7 @@
           <div v-else-if="!partidas.length" class="vacio">
             {{ jornadaPartidos ? 'Las partidas aparecerán cuando se importen los resultados.' : 'Todavía no hay jornadas en el calendario.' }}
           </div>
-          <RouterLink v-for="p in calendario.length ? [] : partidas" :key="p.id" :to="`/partidas/${p.id}`" class="partido">
+          <RouterLink v-for="p in calendario.length ? [] : ultimosResultados" :key="p.id" :to="`/partidas/${p.id}`" class="partido">
             <span class="tenue hora">{{ fechaHora(p.fechaHora) }}</span>
             <span class="lado" :class="{ gana: p.ganador?.id === p.equipoAzul?.id }">
               <InsigniaEquipo :equipo="p.equipoAzul" nombre="siglas" />
@@ -207,10 +207,15 @@ const imagenesRotas = reactive(new Set())
 const jornadaActual = computed(() => juego.enCurso || semana.value.jornada || juego.ultimaFinalizada || juego.proxima)
 // Partidos: la jornada en juego o, si no hay, los últimos resultados
 const jornadaPartidos = computed(() => juego.enCurso || juego.ultimaFinalizada)
+// Solo los 4 últimos resultados, del más reciente al más antiguo
+const MAX_RESULTADOS = 4
+const ultimosResultados = computed(() => [...partidas.value]
+  .sort((a, b) => String(b.fechaHora).localeCompare(String(a.fechaHora)))
+  .slice(0, MAX_RESULTADOS))
 const tituloPartidos = computed(() => {
   if (calendario.value.length) return 'Próximos partidos'
   if (!jornadaPartidos.value) return 'Partidos'
-  return juego.enCurso ? 'Partidos de la jornada' : 'Últimos resultados'
+  return juego.enCurso ? 'Últimos partidos de la jornada' : 'Últimos resultados'
 })
 
 // Mis jugadores en TODAS mis ligas (sin repetir: el mismo jugador en dos ligas cuenta una vez)
