@@ -9,6 +9,8 @@ import com.lecfantasy.security.AuthUser;
 import com.lecfantasy.service.ActividadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -67,6 +69,23 @@ public class NoticiasExternasService {
         }
     }
 
+    /** Al arrancar (p. ej. tras un despliegue) se importa una vez en segundo plano, sin esperar al cron. */
+    @EventListener(ApplicationReadyEvent.class)
+    public void alArrancar() {
+        if (config.automaticas()) {
+            Thread hilo = new Thread(() -> {
+                try {
+                    Importacion r = importar(null);
+                    log.info("Noticias: {} nuevas al arrancar ({})", r.nuevas(), r.canales());
+                } catch (Exception e) {
+                    log.warn("Noticias: la importación al arrancar falló: {}", e.getMessage());
+                }
+            }, "noticias-arranque");
+            hilo.setDaemon(true);
+            hilo.start();
+        }
+    }
+
     /** Importa ahora. admin = botón del panel; null = tarea programada. */
     public synchronized Importacion importar(AuthUser admin) {
         List<Canal> canales = new ArrayList<>();
@@ -85,6 +104,9 @@ public class NoticiasExternasService {
         int nuevas = canales.stream().mapToInt(Canal::nuevas).sum();
         Importacion resultado = new Importacion(LocalDateTime.now(), admin != null, nuevas, canales);
         ultima = resultado;
+        if (canales.stream().anyMatch(c -> c.error() == null)) {
+            log.info("Noticias: {} nuevas ({})", nuevas, canales);
+        }
         if (admin != null || nuevas > 0) {
             String quien = admin == null ? "El sistema (automático)" : admin.nombre();
             actividad.registrar(admin, TipoActividad.NOTICIA,
